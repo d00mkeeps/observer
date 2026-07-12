@@ -1,0 +1,19 @@
+services:
+  operator:
+    build: ./operator
+    container_name: obs-operator
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - ./operator/cards:/cards:ro
+    networks:
+      - obs
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+networks:
+  obs:
+    external: true
