@@ -2,7 +2,7 @@ import time
 import logging
 from datetime import datetime
 import httpx
-from report import _query_prometheus, _query_loki
+from report import _prom, _loki
 
 log = logging.getLogger("operator.portfolio")
 
@@ -84,16 +84,16 @@ def record_deploy_event(project: str, status: str, commit: str = "", actor: str 
 async def get_system_status() -> dict:
     async with httpx.AsyncClient() as client:
         # Running containers
-        running_res = await _query_prometheus(client, 'time() - container_last_seen{name=~".+"} < 60')
+        running_res = await _prom(client, 'time() - container_last_seen{name=~".+"} < 60')
         running_names = {r["metric"]["name"] for r in running_res}
 
         # Host resources
-        ram_total_r = await _query_prometheus(client, "node_memory_MemTotal_bytes")
-        ram_avail_r = await _query_prometheus(client, "node_memory_MemAvailable_bytes")
-        disk_total_r = await _query_prometheus(client, 'node_filesystem_size_bytes{mountpoint="/"}')
-        disk_avail_r = await _query_prometheus(client, 'node_filesystem_avail_bytes{mountpoint="/"}')
-        load1_r = await _query_prometheus(client, "node_load1")
-        uptime_r = await _query_prometheus(client, "time() - node_boot_time_seconds")
+        ram_total_r = await _prom(client, "node_memory_MemTotal_bytes")
+        ram_avail_r = await _prom(client, "node_memory_MemAvailable_bytes")
+        disk_total_r = await _prom(client, 'node_filesystem_size_bytes{mountpoint="/"}')
+        disk_avail_r = await _prom(client, 'node_filesystem_avail_bytes{mountpoint="/"}')
+        load1_r = await _prom(client, "node_load1")
+        uptime_r = await _prom(client, "time() - node_boot_time_seconds")
 
     now = time.time()
     projects_status = {}
