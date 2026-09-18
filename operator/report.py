@@ -1,4 +1,5 @@
 import os
+import time
 import logging
 import urllib.parse
 from datetime import datetime
@@ -10,130 +11,193 @@ log = logging.getLogger("operator.report")
 PROMETHEUS_URL = os.environ.get("PROMETHEUS_URL", "http://prometheus:9090")
 LOKI_URL = os.environ.get("LOKI_URL", "http://loki:3100")
 
+# Containers to skip in the app sections (infra, not user apps)
+INFRA_CONTAINERS = {
+    "obs-prometheus", "obs-grafana", "obs-loki", "obs-alloy",
+    "obs-cadvisor", "obs-node-exporter", "obs-operator",
+    "sturdy-robot-tunnel-1",
+}
 
-async def _query_prometheus(client: httpx.AsyncClient, expr: str) -> list:
+
+async def _prom(client: httpx.AsyncClient, expr: str) -> list:
     try:
-        url = f"{PROMETHEUS_URL}/api/v1/query?query=" + urllib.parse.quote(expr)
-        r = await client.get(url, timeout=10.0)
+        r = await client.get(
+            f"{PROMETHEUS_URL}/api/v1/query",
+            params={"query": expr},
+            timeout=10.0,
+        )
         if r.status_code == 200:
             return r.json().get("data", {}).get("result", [])
     except Exception as e:
-        log.warning("Prometheus query failed for '%s': %s", expr, e)
+        log.warning("Prometheus query failed (%s): %s", expr[:60], e)
     return []
 
 
-async def _query_loki(client: httpx.AsyncClient, expr: str) -> list:
+async def _loki(client: httpx.AsyncClient, expr: str) -> list:
     try:
-        url = f"{LOKI_URL}/loki/api/v1/query?query=" + urllib.parse.quote(expr)
-        r = await client.get(url, timeout=15.0)
+        r = await client.get(
+            f"{LOKI_URL}/loki/api/v1/query",
+            params={"query": expr},
+            timeout=15.0,
+        )
         if r.status_code == 200:
             return r.json().get("data", {}).get("result", [])
     except Exception as e:
-        log.warning("Loki query failed for '%s': %s", expr, e)
+        log.warning("Loki query failed (%s): %s", expr[:60], e)
     return []
+
+
+def _bar(pct: float, width: int = 10) -> str:
+    """Render a simple block progress bar, e.g. ████░░░░░░ 42%"""
+    filled = round(pct / 100 * width)
+    return "█" * filled + "░" * (width - filled) + f" {pct:.0f}%"
+
+
+def _mb(bytes_val: float) -> str:
+    if bytes_val >= 1024:
+        return f"{bytes_val / 1024:.1f} GB"
+    return f"{bytes_val:.0f} MB"
 
 
 async def generate_daily_report() -> str:
     async with httpx.AsyncClient() as client:
-        # 1. Host Resources
-        ram_total_res = await _query_prometheus(client, "node_memory_MemTotal_bytes")
-        ram_avail_res = await _query_prometheus(client, "node_memory_MemAvailable_bytes")
-        disk_total_res = await _query_prometheus(client, 'node_filesystem_size_bytes{mountpoint="/"}')
-        disk_avail_res = await _query_prometheus(client, 'node_filesystem_avail_bytes{mountpoint="/"}')
-        load1_res = await _query_prometheus(client, "node_load1")
-        load5_res = await _query_prometheus(client, "node_load5")
-        load15_res = await _query_prometheus(client, "node_load15")
-        uptime_res = await _query_prometheus(client, "time() - node_boot_time_seconds")
+        # ── Host ──────────────────────────────────────────────
+        ram_total_r  = await _prom(client, "node_memory_MemTotal_bytes")
+        ram_avail_r  = await _prom(client, "node_memory_MemAvailable_bytes")
+        disk_total_r = await _prom(client, 'node_filesystem_size_bytes{mountpoint="/"}')
+        disk_avail_r = await _prom(client, 'node_filesystem_avail_bytes{mountpoint="/"}')
+        load1_r      = await _prom(client, "node_load1")
+        uptime_r     = await _prom(client, "time() - node_boot_time_seconds")
 
-        # 2. Container Status
-        running_res = await _query_prometheus(client, 'time() - container_last_seen{name=~".+"} < 60')
+        # ── Containers ────────────────────────────────────────
+        running_r = await _prom(client, 'time() - container_last_seen{name=~".+"} < 60')
 
-        # 3. 24-hour Error Summary from Loki
-        error_res = await _query_loki(
+        # Per-container memory (MB)
+        mem_r = await _prom(client, 'sum by (name) (container_memory_usage_bytes{name=~".+"})')
+
+        # Per-container CPU % (rate over last 5m)
+        cpu_r = await _prom(client, 'sum by (name) (rate(container_cpu_usage_seconds_total{name=~".+"}[5m])) * 100')
+
+        # ── Errors from Loki ──────────────────────────────────
+        error_r = await _loki(
             client,
-            'sum by (container) (count_over_time({job=~".+", container!~"obs-.*"} |~ "(?i)(level=error|level=fatal|error:|fatal:|exception:|traceback|panic:)" [24h]))'
+            'sum by (container) (count_over_time({job=~".+", container!~"obs-.*"}'
+            ' |~ "(?i)(level=error|level=fatal|error:|fatal:|exception:|traceback|panic:)" [24h]))',
         )
 
-    # Format RAM
-    ram_str = "N/A"
-    if ram_total_res and ram_avail_res:
-        total = float(ram_total_res[0]["value"][1]) / (1024 ** 3)
-        avail = float(ram_avail_res[0]["value"][1]) / (1024 ** 3)
-        used = total - avail
-        pct = (used / total) * 100 if total > 0 else 0
-        ram_str = f"{used:.1f} GB / {total:.1f} GB ({pct:.1f}% used)"
+    # ── Parse host ────────────────────────────────────────────
+    ram_pct = ram_used_gb = ram_total_gb = 0.0
+    if ram_total_r and ram_avail_r:
+        t = float(ram_total_r[0]["value"][1])
+        a = float(ram_avail_r[0]["value"][1])
+        ram_used_gb  = (t - a) / 1024**3
+        ram_total_gb = t / 1024**3
+        ram_pct      = (t - a) / t * 100
 
-    # Format Disk
-    disk_str = "N/A"
-    if disk_total_res and disk_avail_res:
-        d_total = float(disk_total_res[0]["value"][1]) / (1024 ** 3)
-        d_avail = float(disk_avail_res[0]["value"][1]) / (1024 ** 3)
-        d_used = d_total - d_avail
-        d_pct = (d_used / d_total) * 100 if d_total > 0 else 0
-        disk_str = f"{d_used:.1f} GB / {d_total:.1f} GB ({d_pct:.1f}% used)"
+    disk_pct = disk_used_gb = disk_total_gb = 0.0
+    if disk_total_r and disk_avail_r:
+        t = float(disk_total_r[0]["value"][1])
+        a = float(disk_avail_r[0]["value"][1])
+        disk_used_gb  = (t - a) / 1024**3
+        disk_total_gb = t / 1024**3
+        disk_pct      = (t - a) / t * 100
 
-    # Format Load
-    load_str = "N/A"
-    if load1_res and load5_res and load15_res:
-        l1 = float(load1_res[0]["value"][1])
-        l5 = float(load5_res[0]["value"][1])
-        l15 = float(load15_res[0]["value"][1])
-        load_str = f"{l1:.2f}, {l5:.2f}, {l15:.2f}"
+    load1 = float(load1_r[0]["value"][1]) if load1_r else 0.0
 
-    # Format Uptime
-    uptime_str = "N/A"
-    if uptime_res:
-        secs = float(uptime_res[0]["value"][1])
-        days = int(secs // 86400)
-        hrs = int((secs % 86400) // 3600)
-        uptime_str = f"{days}d {hrs}h"
+    uptime_str = "unknown"
+    if uptime_r:
+        s = float(uptime_r[0]["value"][1])
+        uptime_str = f"{int(s // 86400)}d {int((s % 86400) // 3600)}h"
 
-    # Containers
-    running_count = len(running_res)
+    # ── Parse containers ─────────────────────────────────────
+    running_names = {r["metric"]["name"] for r in running_r}
+    app_names     = sorted(running_names - INFRA_CONTAINERS)
 
-    # Errors
-    errors_by_container = {}
+    mem_by_name = {r["metric"]["name"]: float(r["value"][1]) / 1024**2 for r in mem_r}
+    cpu_by_name = {r["metric"]["name"]: float(r["value"][1]) for r in cpu_r}
+
+    # ── Parse errors ─────────────────────────────────────────
+    errors_by_container: dict[str, int] = {}
     total_errors = 0
-    for r in error_res:
-        count = int(r["value"][1])
-        if count > 0:
-            c_name = r.get("metric", {}).get("container", "unknown")
-            errors_by_container[c_name] = count
-            total_errors += count
+    for r in error_r:
+        c = r.get("metric", {}).get("container", "unknown")
+        n = int(r["value"][1])
+        if n > 0:
+            errors_by_container[c] = n
+            total_errors += n
 
-    # Build report text
-    today = datetime.now().strftime("%Y-%m-%d")
-    lines = [
-        f"📊 *Volcano Daily Performance Report*",
-        f"📅 `{today}`",
-        "",
-        "🖥 *Host Resources:*",
-        f"• RAM: `{ram_str}`",
-        f"• Disk: `{disk_str}`",
-        f"• Load Average: `{load_str}`",
-        f"• Uptime: `{uptime_str}`",
-        "",
-        f"📦 *Containers:*",
-        f"• `{running_count}` active containers running",
-        "",
-        f"📋 *Application Errors (Last 24h):*",
-    ]
+    # ── Format ───────────────────────────────────────────────
+    today = datetime.now().strftime("%Y-%m-%d %H:%M")
 
+    # Host block
+    ram_warn  = " ⚠️" if ram_pct  > 80 else ""
+    disk_warn = " ⚠️" if disk_pct > 80 else ""
+    load_warn = " ⚠️" if load1    > 4  else ""
+
+    host_block = (
+        f"🖥 *volcano*  —  up {uptime_str}\n"
+        f"  RAM   {_bar(ram_pct)}  {ram_used_gb:.1f}/{ram_total_gb:.0f} GB{ram_warn}\n"
+        f"  Disk  {_bar(disk_pct)}  {disk_used_gb:.0f}/{disk_total_gb:.0f} GB{disk_warn}\n"
+        f"  Load  {load1:.2f}{load_warn}    Containers: {len(running_names)} running"
+    )
+
+    # App table — show memory, cpu, errors per app container
+    # Skip infra; limit to app containers
+    app_rows = []
+    for name in app_names:
+        mem_mb = mem_by_name.get(name, 0)
+        cpu_pc = cpu_by_name.get(name, 0)
+        errs   = errors_by_container.get(name, 0)
+        err_str = f"⚠️{errs}" if errs else "✅"
+        app_rows.append((name, mem_mb, cpu_pc, errs, err_str))
+
+    # Sort by error count desc, then name
+    app_rows.sort(key=lambda x: (-x[3], x[0]))
+
+    app_lines = []
+    for name, mem_mb, cpu_pc, errs, err_str in app_rows:
+        mem_s = _mb(mem_mb)
+        cpu_s = f"{cpu_pc:.1f}%" if cpu_pc >= 0.1 else "<0.1%"
+        app_lines.append(f"  `{name:<28}` {mem_s:>7}  {cpu_s:>5}  {err_str}")
+
+    app_block = (
+        "📦 *Apps*\n"
+        "  `{'name':<28}` {'mem':>7}  {'cpu':>5}  errors\n"
+        "  " + "─" * 52 + "\n"
+        + "\n".join(app_lines)
+    )
+
+    # Error summary (top 5)
+    error_block_lines = []
     if total_errors == 0:
-        lines.append("• ✅ 0 errors recorded across all apps")
+        error_block_lines.append("✅ No errors in the last 24h")
     else:
-        sorted_errors = sorted(errors_by_container.items(), key=lambda x: x[1], reverse=True)
-        for c_name, count in sorted_errors[:5]:
-            lines.append(f"• `{c_name}`: {count} error{'s' if count != 1 else ''}")
-        lines.append(f"• *Total:* {total_errors} errors across {len(sorted_errors)} services")
+        sorted_errs = sorted(errors_by_container.items(), key=lambda x: -x[1])
+        for c, n in sorted_errs[:5]:
+            bar = "█" * min(10, max(1, round(n / max(errors_by_container.values()) * 10)))
+            error_block_lines.append(f"  `{c}` — {n:,}")
+        error_block_lines.append(f"\n  *Total: {total_errors:,} errors across {len(errors_by_container)} services*")
+
+    error_block = "📋 *Errors (24h)*\n" + "\n".join(error_block_lines)
+
+    # Assemble
+    lines = [
+        f"📊 *Daily Report*  `{today}`",
+        "",
+        host_block,
+        "",
+        app_block,
+        "",
+        error_block,
+    ]
 
     return "\n".join(lines)
 
 
 async def send_daily_report():
     try:
-        report_text = await generate_daily_report()
-        await send_telegram(report_text)
-        log.info("Daily performance report sent successfully")
+        text = await generate_daily_report()
+        await send_telegram(text)
+        log.info("Daily performance report sent")
     except Exception as e:
-        log.error("Failed to generate or send daily report: %s", e)
+        log.error("Failed to send daily report: %s", e)
