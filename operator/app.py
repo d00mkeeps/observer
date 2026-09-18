@@ -4,11 +4,13 @@ import asyncio
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from notify import send_telegram
 from context import gather_context
 from diagnose import diagnose
 from report import send_daily_report, generate_daily_report
 from monitor import run_error_monitor
+from portfolio import get_system_status, record_deploy_event
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 log = logging.getLogger("operator")
@@ -48,6 +50,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Observer Operator", lifespan=lifespan)
 
+# Enable CORS for portfolio & admin dashboards
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.post("/alert")
 async def receive_alert(request: Request):
@@ -73,6 +84,9 @@ async def receive_deploy(request: Request):
     actor = html.escape(data.get("actor", ""))
     details = html.escape(data.get("message", ""))
 
+    # Record in portfolio tracker
+    record_deploy_event(project=project, status=status, commit=commit, actor=actor, message=details)
+
     icon = "🚀" if status == "success" else "❌"
     lines = [f"{icon} <b>Deploy {status.upper()}</b> — <code>{project}</code>"]
     if commit:
@@ -86,6 +100,11 @@ async def receive_deploy(request: Request):
     log.info("Deploy event received for %s (%s)", project, status)
     await send_telegram(message, channel="deploys")
     return {"ok": True}
+
+
+@app.get("/status")
+async def status_endpoint():
+    return await get_system_status()
 
 
 @app.post("/report")
