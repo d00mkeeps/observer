@@ -47,6 +47,12 @@ PROJECT_METADATA = {
         "url": "https://tax.mileshillary.com",
         "category": "Web App",
     },
+    "brain": {
+        "title": "Brain Knowledge Base",
+        "description": "Historical knowledge graph and cognitive research notes.",
+        "url": "https://brain.mileshillary.com",
+        "category": "Research",
+    },
     "observer": {
         "title": "Observer Ops",
         "description": "Autonomous host monitoring, alerting, and deployment orchestrator.",
@@ -108,12 +114,12 @@ async def get_system_status() -> dict:
         elif containers and len(active_containers) > 0:
             state = "degraded"
             detail = f"{len(active_containers)}/{len(containers)} containers running"
-        elif slug == "tax":
-            state = "live"
-            detail = "Static app live"
+        elif slug in ("tax", "brain"):
+            state = "archived"
+            detail = "Live static archive"
         else:
             state = "archived"
-            detail = "Service offline"
+            detail = "Archived project"
 
         projects_status[slug] = {
             "slug": slug,
