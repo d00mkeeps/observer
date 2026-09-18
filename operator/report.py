@@ -162,7 +162,7 @@ async def generate_daily_report() -> str:
 
     app_block = (
         "📦 *Apps*\n"
-        "  `{'name':<28}` {'mem':>7}  {'cpu':>5}  errors\n"
+        f"  `{'name':<28}` {'mem':>7}  {'cpu':>5}  errors\n"
         "  " + "─" * 52 + "\n"
         + "\n".join(app_lines)
     )
