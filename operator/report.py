@@ -1,4 +1,5 @@
 import os
+import html
 import logging
 import urllib.parse
 from datetime import datetime
@@ -89,30 +90,30 @@ async def generate_daily_report() -> str:
     today = datetime.now().strftime("%d %b %Y, %H:%M")
 
     lines = [
-        f"🌋 Volcano  {today}",
-        f"━━━━━━━━━━━━━━━━━━━━",
-        f"💾 RAM   {ram_gb:.1f} GB  ({ram_pct}%)",
-        f"💿 Disk  {disk_gb:.0f} GB  ({disk_pct}%)",
-        f"⚡ Load  {load:.2f}   Up {uptime_str}",
-        f"📦 {n_containers} containers running",
-        f"━━━━━━━━━━━━━━━━━━━━",
+        f"🌋 <b>Volcano</b>  {today}",
+        "━━━━━━━━━━━━━━━━━━━━",
+        f"💾 <b>RAM</b>   <code>{ram_gb:.1f} GB ({ram_pct}%)</code>",
+        f"💿 <b>Disk</b>  <code>{disk_gb:.0f} GB ({disk_pct}%)</code>",
+        f"⚡ <b>Load</b>  <code>{load:.2f}</code>   Up <code>{uptime_str}</code>",
+        f"📦 <code>{n_containers}</code> containers running",
+        "━━━━━━━━━━━━━━━━━━━━",
     ]
 
     if total_errors == 0:
         lines.append("✅ No errors in the last 24h")
     else:
-        lines.append(f"⚠️ Errors (24h)  —  {total_errors:,} total")
+        lines.append(f"⚠️ <b>Errors (24h)</b> — <code>{total_errors:,}</code> total")
         for c, n in sorted(errors.items(), key=lambda x: -x[1])[:5]:
-            lines.append(f"  {c}  {n:,}")
+            lines.append(f"  • <code>{html.escape(c)}</code>: {n:,}")
         if len(errors) > 5:
-            lines.append(f"  … and {len(errors) - 5} more services")
+            lines.append(f"  <i>… and {len(errors) - 5} more services</i>")
 
     return "\n".join(lines)
 
 
 async def send_daily_report():
     try:
-        await send_telegram(await generate_daily_report())
+        await send_telegram(await generate_daily_report(), channel="reports")
         log.info("Daily performance report sent")
     except Exception as e:
         log.error("Failed to send daily report: %s", e)

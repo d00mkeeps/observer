@@ -1,4 +1,5 @@
 import os
+import html
 import time
 import asyncio
 import logging
@@ -77,14 +78,14 @@ async def check_for_errors(client: httpx.AsyncClient, start_ns: int, end_ns: int
 
             ts = datetime.now().strftime("%H:%M:%S")
             msg_parts = [
-                f"🚨 App Error  —  {container}  ({ts})",
-                sample_line,
+                f"🚨 <b>App Error</b> — <code>{html.escape(container)}</code> ({ts})",
+                f"<pre>{html.escape(sample_line)}</pre>",
             ]
             if suppressed > 0:
-                msg_parts.append(f"+{suppressed} similar in the last {DEBOUNCE_SECONDS // 60}m")
+                msg_parts.append(f"<i>(+{suppressed} similar in the last {DEBOUNCE_SECONDS // 60}m)</i>")
 
             message = "\n".join(msg_parts)
-            await send_telegram(message)
+            await send_telegram(message, channel="alerts")
             log.info("Sent error alert for %s", container)
 
     except Exception as e:

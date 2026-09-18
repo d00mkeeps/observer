@@ -1,3 +1,4 @@
+import html
 import logging
 import asyncio
 from datetime import datetime, timedelta
@@ -18,7 +19,6 @@ async def run_daily_scheduler():
     while True:
         try:
             now = datetime.now()
-            # Calculate next 09:00 AM
             target = now.replace(hour=9, minute=0, second=0, microsecond=0)
             if now >= target:
                 target += timedelta(days=1)
@@ -60,31 +60,31 @@ async def receive_alert(request: Request):
 
         ctx = await gather_context(target, alert)
         message = await diagnose(target, status, alert, ctx)
-        await send_telegram(message)
+        await send_telegram(message, channel="alerts")
     return {"ok": True}
 
 
 @app.post("/deploy")
 async def receive_deploy(request: Request):
     data = await request.json()
-    project = data.get("project", "unknown-service")
+    project = html.escape(data.get("project", "unknown-service"))
     status = data.get("status", "success").lower()
-    commit = data.get("commit", "")
-    actor = data.get("actor", "")
-    details = data.get("message", "")
+    commit = html.escape(data.get("commit", ""))
+    actor = html.escape(data.get("actor", ""))
+    details = html.escape(data.get("message", ""))
 
     icon = "🚀" if status == "success" else "❌"
-    lines = [f"{icon} Deploy {status.upper()}  —  {project}"]
+    lines = [f"{icon} <b>Deploy {status.upper()}</b> — <code>{project}</code>"]
     if commit:
-        lines.append(f"  commit  {commit}")
+        lines.append(f"  • commit: <code>{commit}</code>")
     if actor:
-        lines.append(f"  by      {actor}")
+        lines.append(f"  • by: <code>{actor}</code>")
     if details:
-        lines.append(f"  {details}")
+        lines.append(f"  • {details}")
 
     message = "\n".join(lines)
     log.info("Deploy event received for %s (%s)", project, status)
-    await send_telegram(message)
+    await send_telegram(message, channel="deploys")
     return {"ok": True}
 
 
@@ -92,7 +92,7 @@ async def receive_deploy(request: Request):
 @app.get("/report")
 async def trigger_report():
     report_text = await generate_daily_report()
-    await send_telegram(report_text)
+    await send_telegram(report_text, channel="reports")
     return {"ok": True, "report": report_text}
 
 

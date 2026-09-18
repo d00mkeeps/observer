@@ -1,4 +1,8 @@
-async def diagnose(target, status, alert, ctx) -> str:        # /operator/diagnose.diagnose
-    # v2: OpenRouter call with ctx -> probable cause + suggested first command
+import html
+
+async def diagnose(target: str, status: str, alert: dict, ctx: dict) -> str:
     icon = "🔥" if status == "firing" else "✅"
-    return f"{icon} [{status.upper()}] {target}\n{ctx.get('summary','')}".strip()
+    summary = html.escape(ctx.get("summary", ""))
+    target_esc = html.escape(target)
+    status_str = status.upper()
+    return f"{icon} <b>[{status_str}]</b> <code>{target_esc}</code>\n{summary}".strip()
