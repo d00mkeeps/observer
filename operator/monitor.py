@@ -72,16 +72,16 @@ async def check_for_errors(client: httpx.AsyncClient, start_ns: int, end_ns: int
 
             # Select most representative error line (first line)
             sample_line = new_lines[0][1]
-            if len(sample_line) > 400:
-                sample_line = sample_line[:400] + "..."
+            if len(sample_line) > 300:
+                sample_line = sample_line[:300] + "..."
 
+            ts = datetime.now().strftime("%H:%M:%S")
             msg_parts = [
-                f"🚨 [APP ERROR] `{container}`",
-                f"🕒 `{datetime.now().strftime('%H:%M:%S')}`",
-                f"```\n{sample_line}\n```",
+                f"🚨 App Error  —  {container}  ({ts})",
+                sample_line,
             ]
             if suppressed > 0:
-                msg_parts.append(f"ℹ️ _(+{suppressed} similar errors occurred in the last {DEBOUNCE_SECONDS // 60}m)_")
+                msg_parts.append(f"+{suppressed} similar in the last {DEBOUNCE_SECONDS // 60}m")
 
             message = "\n".join(msg_parts)
             await send_telegram(message)

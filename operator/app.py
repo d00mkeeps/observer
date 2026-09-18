@@ -74,15 +74,13 @@ async def receive_deploy(request: Request):
     details = data.get("message", "")
 
     icon = "🚀" if status == "success" else "❌"
-    header = f"{icon} [DEPLOY {status.upper()}] *{project}*"
-
-    lines = [header]
+    lines = [f"{icon} Deploy {status.upper()}  —  {project}"]
     if commit:
-        lines.append(f"• Commit: `{commit}`")
+        lines.append(f"  commit  {commit}")
     if actor:
-        lines.append(f"• Triggered by: `{actor}`")
+        lines.append(f"  by      {actor}")
     if details:
-        lines.append(f"• Details: {details}")
+        lines.append(f"  {details}")
 
     message = "\n".join(lines)
     log.info("Deploy event received for %s (%s)", project, status)
