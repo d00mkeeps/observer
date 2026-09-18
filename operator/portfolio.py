@@ -105,7 +105,10 @@ async def get_system_status() -> dict:
         # Check recent deploy within last 5 minutes
         recent_deploy = next((d for d in _recent_deploys if d["project"].lower() == slug and (now - d["unix_time"]) < 300), None)
 
-        if recent_deploy and recent_deploy["status"] == "updating":
+        if slug in ("tax", "brain", "qa"):
+            state = "archived"
+            detail = "Live static archive"
+        elif recent_deploy and recent_deploy["status"] == "updating":
             state = "updating"
             detail = "Deploy in progress"
         elif containers and len(active_containers) == len(containers):
@@ -114,9 +117,6 @@ async def get_system_status() -> dict:
         elif containers and len(active_containers) > 0:
             state = "degraded"
             detail = f"{len(active_containers)}/{len(containers)} containers running"
-        elif slug in ("tax", "brain"):
-            state = "archived"
-            detail = "Live static archive"
         else:
             state = "archived"
             detail = "Archived project"
