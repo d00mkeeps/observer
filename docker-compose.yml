@@ -3,6 +3,8 @@ services:
     build: ./operator
     container_name: obs-operator
     restart: always
+    ports:
+      - "127.0.0.1:8006:8000"
     env_file:
       - .env
     volumes:
