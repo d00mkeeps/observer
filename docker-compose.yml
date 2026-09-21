@@ -11,6 +11,7 @@ services:
       - ./operator/cards:/cards:ro
       - ${CODEBASES_PATH:-/home/miles/prod}:/codebases:ro
       - ${DEV_WORKSPACE_PATH:-/home/miles/dev}:/workspace/dev
+      - ${SSH_AUTH_DIR:-/home/miles/.ssh}:/root/.ssh:ro
     networks:
       - obs
     deploy:

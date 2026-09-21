@@ -5,9 +5,9 @@ import logging
 import httpx
 from notify import send_telegram_reply, send_chat_action
 from agent import process_telegram_message
+from patch_manager import apply_and_push_patch, reject_patch, get_pending_patches
 
 log = logging.getLogger("operator.telegram")
-
 
 _CHANNEL_ENV_VARS = [
     "TELEGRAM_CHAT_ID",
@@ -56,11 +56,7 @@ def is_authorized(chat_id: str | int, user_id: str | int | None = None) -> bool:
 
 
 async def handle_telegram_update(update: dict) -> dict:
-    """Parse and process an incoming Telegram update object.
-
-    Currently returns a mock echo response. Later this will route
-    to the Antigravity read-only agent.
-    """
+    """Parse and process an incoming Telegram update object."""
     message = update.get("message") or update.get("edited_message")
     if not message:
         return {"ok": True, "skipped": "no_message"}
@@ -90,10 +86,43 @@ async def handle_telegram_update(update: dict) -> dict:
 
     log.info("Received query from %s (user_id=%s, chat_id=%s): %s", user_name, user_id, chat_id, text)
 
-    # Show typing indicator while agent investigates and reasons
+    # 1. Direct Command Interceptor: /approve
+    if text.startswith("/approve"):
+        parts = text.split(maxsplit=1)
+        patch_id = parts[1].strip() if len(parts) > 1 else ""
+        success, reply_msg = apply_and_push_patch(patch_id)
+        await send_telegram_reply(chat_id=chat_id, text=reply_msg, reply_to_message_id=message_id)
+        return {"ok": True, "status": "approved" if success else "approve_failed"}
+
+    # 2. Direct Command Interceptor: /reject
+    if text.startswith("/reject"):
+        parts = text.split(maxsplit=1)
+        patch_id = parts[1].strip() if len(parts) > 1 else ""
+        success, reply_msg = reject_patch(patch_id)
+        await send_telegram_reply(chat_id=chat_id, text=reply_msg, reply_to_message_id=message_id)
+        return {"ok": True, "status": "rejected"}
+
+    # 3. Direct Command Interceptor: /patches
+    if text == "/patches":
+        pending = get_pending_patches()
+        if not pending:
+            reply_msg = "ℹ️ No pending patches waiting for approval."
+        else:
+            lines = ["📋 <b>Pending Patches Waiting for Approval:</b>\n"]
+            for p in pending:
+                lines.append(
+                    f"• <code>{p['patch_id']}</code> ({p['project']})\n"
+                    f"  Commit: {html.escape(p['commit_message'])}\n"
+                    f"  Approve: <code>/approve {p['patch_id']}</code>\n"
+                    f"  Reject: <code>/reject {p['patch_id']}</code>\n"
+                )
+            reply_msg = "\n".join(lines)
+        await send_telegram_reply(chat_id=chat_id, text=reply_msg, reply_to_message_id=message_id)
+        return {"ok": True, "status": "listed_patches"}
+
+    # 4. Route to Antigravity Agent for conversational reasoning & tool execution
     await send_chat_action(chat_id=chat_id, action="typing")
 
-    # Generate response via Antigravity Agent
     agent_reply = await process_telegram_message(
         chat_id=chat_id,
         user_text=text,
@@ -108,12 +137,8 @@ async def handle_telegram_update(update: dict) -> dict:
     return {"ok": True, "status": "processed"}
 
 
-
 async def run_telegram_poller():
-    """Background long-polling worker for Telegram updates.
-
-    Enabled by setting TELEGRAM_POLLING=true in .env.
-    """
+    """Background long-polling worker for Telegram updates."""
     token = os.environ.get("TELEGRAM_TOKEN", "").strip()
     if not token:
         log.warning("Telegram poller not started: TELEGRAM_TOKEN is missing")

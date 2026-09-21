@@ -12,6 +12,12 @@ from tools_observability import (
     get_recent_logs,
     get_system_health,
 )
+from tools_dev import (
+    prepare_dev_workspace,
+    write_dev_file,
+    run_dev_tests,
+    propose_patch,
+)
 
 log = logging.getLogger("operator.agent")
 
@@ -80,14 +86,21 @@ Your role is to be a clear, human-friendly translator between raw server infrast
 CRITICAL BEHAVIOR RULES:
 1. COMPLETE ANSWERS ONLY: Never emit intermediate filler like "Let me check the code", "I will look into that", or promise to reply in a future turn. Always execute all necessary tools (reading code, searching logs, inspecting frequency) FIRST, and deliver the complete, final answer with code snippets and facts in the same message.
 2. THOROUGH INVESTIGATION: Whenever asked about an error, bug, codebase feature, or system state, review all relevant files and Loki logs using your tools before formulating your conclusion.
-3. STRICT READ-ONLY ACCESS: You have read-only access to all production repos and containers. Never attempt or simulate write actions on live code.
+3. STRICT PRODUCTION SEPARATION & DEV WORKSPACE:
+   - Production repos (/codebases/prod) are STRICTLY READ-ONLY.
+   - When asked to implement a bugfix, write code, or test a change, work exclusively in the dev sandbox (/workspace/dev/<project>):
+     a. Call `prepare_dev_workspace(project)` to sync the dev workspace.
+     b. Call `write_dev_file(project, filepath, content)` to apply the patch/tests.
+     c. Call `run_dev_tests(project)` to run the automated test suite.
+     d. ONLY if tests pass 100%, call `propose_patch(project, commit_message)` to generate the verified proposal for user approval.
+     e. If tests fail or cannot be automated, NEVER propose a push. Report the failure clearly.
 4. TELEGRAM HTML FORMATTING: Output MUST use Telegram-compatible HTML tags only:
    - <b>bold</b>, <i>italic</i>, <code>code/identifiers</code>, <pre>code blocks</pre>, <blockquote>quotes</blockquote>.
    - Do NOT use Markdown asterisks (**) or Markdown backticks (```).
 5. FIX CLASSIFICATIONS (When proposing fixes):
-   - 🟢 Tier 1 (Trivial Patch): 1-5 line fix (e.g. null check, default fallback, env var, typo). Include <pre> diff snippet.
+   - 🟢 Tier 1 (Trivial Patch): 1-5 line fix (e.g. null check, default fallback, env var, typo).
    - 🟡 Tier 2 (Moderate Logic): Localized function fix, edge-case logic change.
-   - 🔴 Tier 3 (Architectural Refactor): Schema migrations, queue architecture, breaking API change. Explicitly note that a workstation is required.
+   - 🔴 Tier 3 (Architectural Refactor): Schema migrations, queue architecture, breaking API change. Explicitly note that a workstation session is required.
 """
 
 
@@ -102,6 +115,10 @@ def _get_agent_tools():
         get_error_frequency,
         get_recent_logs,
         get_system_health,
+        prepare_dev_workspace,
+        write_dev_file,
+        run_dev_tests,
+        propose_patch,
     ]
 
 
