@@ -9,7 +9,8 @@ services:
       - .env
     volumes:
       - ./operator/cards:/cards:ro
-      - ${CODEBASES_PATH:-/home/miles}:/codebases:ro
+      - ${CODEBASES_PATH:-/home/miles/prod}:/codebases:ro
+      - ${DEV_WORKSPACE_PATH:-/home/miles/dev}:/workspace/dev
     networks:
       - obs
     deploy:

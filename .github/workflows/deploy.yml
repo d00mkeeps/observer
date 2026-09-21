@@ -36,4 +36,5 @@ jobs:
             IdentityFile ~/.ssh/id_deploy" > ~/.ssh/config
 
           ssh "$SERVER_USER@$SSH_HOSTNAME" \
-              "cd /home/miles/observer && git fetch origin main && git reset --hard origin/main && docker compose up -d --build operator && sleep 2 && curl -s --retry 5 --retry-connrefused -X POST http://127.0.0.1:8006/deploy -H 'Content-Type: application/json' -d '{\"project\": \"observer\", \"status\": \"success\", \"commit\": \"'\$(git rev-parse --short HEAD)'\", \"actor\": \"${{ github.actor }}\"}'"
+              "cd /home/miles/prod/observer && git fetch origin main && git reset --hard origin/main && docker compose up -d --build operator && sleep 2 && curl -s --retry 5 --retry-connrefused -X POST http://127.0.0.1:8006/deploy -H 'Content-Type: application/json' -d '{\"project\": \"observer\", \"status\": \"success\", \"commit\": \"'\$(git rev-parse --short HEAD)'\", \"actor\": \"${{ github.actor }}\"}'"
+
