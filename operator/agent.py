@@ -1,4 +1,5 @@
 import os
+import json
 import html
 import logging
 from google import genai
@@ -19,17 +20,52 @@ def get_genai_client() -> genai.Client | None:
     if _client is not None:
         return _client
 
+    # 1. Check for standard Google AI Studio GEMINI_API_KEY
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        log.warning("GEMINI_API_KEY is not set in environment.")
-        return None
+    if api_key:
+        try:
+            _client = genai.Client(api_key=api_key)
+            log.info("Initialized Gemini Client with GEMINI_API_KEY")
+            return _client
+        except Exception as e:
+            log.error("Failed to initialize genai.Client with API key: %s", e)
 
-    try:
-        _client = genai.Client(api_key=api_key)
-        return _client
-    except Exception as e:
-        log.error("Failed to initialize genai.Client: %s", e)
-        return None
+    # 2. Check for Google Cloud Service Account (Vertex AI / Volc credentials)
+    creds_json_raw = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON", "").strip()
+    creds_file = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
+    project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "").strip()
+    location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1").strip()
+
+    if creds_json_raw or creds_file:
+        try:
+            from google.oauth2 import service_account
+            if creds_json_raw:
+                info = json.loads(creds_json_raw)
+                creds = service_account.Credentials.from_service_account_info(
+                    info,
+                    scopes=["https://www.googleapis.com/auth/cloud-platform"],
+                )
+                if not project_id:
+                    project_id = info.get("project_id", "")
+            else:
+                creds = service_account.Credentials.from_service_account_file(
+                    creds_file,
+                    scopes=["https://www.googleapis.com/auth/cloud-platform"],
+                )
+
+            _client = genai.Client(
+                vertexai=True,
+                project=project_id,
+                location=location,
+                credentials=creds,
+            )
+            log.info("Initialized Gemini Client on Vertex AI (project=%s, location=%s)", project_id, location)
+            return _client
+        except Exception as e:
+            log.error("Failed to initialize genai.Client with Vertex AI service account: %s", e)
+
+    log.warning("No valid GEMINI_API_KEY or GOOGLE_APPLICATION_CREDENTIALS found.")
+    return None
 
 
 SYSTEM_INSTRUCTION = """You are Volcano Observer, an autonomous SRE and Codebase Intelligence assistant for the production host 'volcano'.
@@ -63,13 +99,13 @@ async def translate_error_to_incident_card(container: str, sample_error: str) ->
     """Analyze a container error by inspecting logs, history, and codebase, and return a 5-point Incident Card."""
     client = get_genai_client()
     if not client:
-        # Fallback to structured plain summary if Gemini API key is missing
+        # Fallback to structured plain summary if Gemini is not configured
         freq_info = get_error_frequency(container, days=7)
         return (
             f"🚨 <b>App Error</b> — <code>{html.escape(container)}</code>\n"
             f"<pre>{html.escape(sample_error[:350])}</pre>\n"
             f"<b>7-Day Frequency:</b>\n<i>{html.escape(freq_info)}</i>\n"
-            f"<i>(Set GEMINI_API_KEY for full AI root-cause analysis & Tier classification)</i>"
+            f"<i>(Configure Gemini credentials for full AI root-cause analysis & Tier classification)</i>"
         )
 
     prompt = f"""An error occurred in production container: '{container}'.
@@ -120,8 +156,8 @@ async def process_telegram_message(chat_id: str | int, user_text: str, user_name
     if not client:
         return (
             f"🤖 <b>Volcano Operator</b>\n"
-            f"Hello {html.escape(user_name)}! 2-way communication is active, but <code>GEMINI_API_KEY</code> is not yet configured in <code>.env</code> on the host.\n\n"
-            f"Please add <code>GEMINI_API_KEY=&lt;key&gt;</code> to enable read-only codebase and log intelligence."
+            f"Hello {html.escape(user_name)}! 2-way communication is active, but Gemini credentials are not yet configured in <code>.env</code> on Volcano.\n\n"
+            f"Please configure <code>GEMINI_API_KEY</code> or <code>GOOGLE_APPLICATION_CREDENTIALS_JSON</code>."
         )
 
     chat_key = str(chat_id)
