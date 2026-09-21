@@ -1,12 +1,10 @@
 import logging
 import os
+import re
 import httpx
 
 log = logging.getLogger("operator.notify")
 
-# Map channel names to env var names.
-# Add a new group chat: create the group, add the bot, get the chat_id,
-# add TELEGRAM_CHAT_<NAME>=<chat_id> to .env, add the key here.
 _CHANNEL_ENV_VARS = {
     "alerts":  "TELEGRAM_CHAT_ALERTS",
     "deploys": "TELEGRAM_CHAT_DEPLOYS",
@@ -16,25 +14,18 @@ _DEFAULT_CHAT_ENV_VAR = "TELEGRAM_CHAT_ID"
 
 
 def _chat_id_for(channel: str) -> str:
-    """Resolve a channel name to a Telegram chat_id.
-
-    Falls back to TELEGRAM_CHAT_ID if the specific channel isn't configured,
-    so everything works with a single chat until you're ready to split.
-    """
     env_var = _CHANNEL_ENV_VARS.get(channel, _DEFAULT_CHAT_ENV_VAR)
     specific = os.environ.get(env_var, "").strip()
     return specific or os.environ.get(_DEFAULT_CHAT_ENV_VAR, "").strip()
 
 
-async def send_telegram(text: str, channel: str = "default") -> None:
-    """Send an HTML-formatted message to a Telegram chat.
+def _strip_html_tags(text: str) -> str:
+    """Strip basic HTML tags if HTML parsing fails."""
+    return re.sub(r"<[^>]+>", "", text)
 
-    Args:
-        text:    Message body. Use HTML tags: <b>, <i>, <code>, <pre>.
-        channel: Logical channel name ("alerts", "deploys", "reports").
-                 Resolves to the matching TELEGRAM_CHAT_* env var,
-                 falling back to TELEGRAM_CHAT_ID if not set.
-    """
+
+async def send_telegram(text: str, channel: str = "default") -> None:
+    """Send an HTML-formatted message to a Telegram chat."""
     token = os.environ.get("TELEGRAM_TOKEN", "").strip()
     chat_id = _chat_id_for(channel)
 
@@ -46,6 +37,10 @@ async def send_telegram(text: str, channel: str = "default") -> None:
         )
         return
 
+    # Cap message size at 4000 characters for Telegram limits
+    if len(text) > 4000:
+        text = text[:3950] + "\n\n<i>… (message truncated)</i>"
+
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
@@ -55,6 +50,16 @@ async def send_telegram(text: str, channel: str = "default") -> None:
                 "parse_mode": "HTML",
             },
         )
+        # If HTML parse error, fallback to plain text
+        if r.status_code == 400:
+            log.warning("Telegram HTML send error (%s), falling back to plain text", r.text)
+            r = await client.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={
+                    "chat_id": chat_id,
+                    "text":    _strip_html_tags(text),
+                },
+            )
         r.raise_for_status()
 
 
@@ -63,21 +68,19 @@ async def send_telegram_reply(
     text: str,
     reply_to_message_id: int | None = None,
 ) -> None:
-    """Send an HTML-formatted reply to a specific Telegram chat_id.
-
-    Args:
-        chat_id:             Target Telegram chat ID.
-        text:                Message body (HTML formatted).
-        reply_to_message_id: Optional ID of the message to reply to.
-    """
+    """Send an HTML-formatted reply to a specific Telegram chat_id."""
     token = os.environ.get("TELEGRAM_TOKEN", "").strip()
     if not token or not chat_id:
         log.warning("Telegram reply skipped: TELEGRAM_TOKEN or chat_id not configured")
         return
 
+    # Cap message size at 4000 characters
+    if len(text) > 4000:
+        text = text[:3950] + "\n\n<i>… (message truncated)</i>"
+
     payload = {
-        "chat_id": chat_id,
-        "text": text,
+        "chat_id":    chat_id,
+        "text":       text,
         "parse_mode": "HTML",
     }
     if reply_to_message_id is not None:
@@ -88,6 +91,15 @@ async def send_telegram_reply(
             f"https://api.telegram.org/bot{token}/sendMessage",
             json=payload,
         )
+        # If HTML parse error or malformed tag, retry without HTML parse_mode
+        if r.status_code == 400:
+            log.warning("Telegram reply HTML parse error (%s); falling back to plain text", r.text)
+            payload["text"] = _strip_html_tags(text)
+            payload.pop("parse_mode", None)
+            r = await client.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json=payload,
+            )
         r.raise_for_status()
 
 
@@ -104,5 +116,3 @@ async def send_chat_action(chat_id: str | int, action: str = "typing") -> None:
             )
     except Exception:
         pass
-
-
