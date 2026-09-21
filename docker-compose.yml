@@ -9,12 +9,13 @@ services:
       - .env
     volumes:
       - ./operator/cards:/cards:ro
+      - ${CODEBASES_PATH:-/home/miles}:/codebases:ro
     networks:
       - obs
     deploy:
       resources:
         limits:
-          memory: 256m
+          memory: 512m
 
 networks:
   obs:

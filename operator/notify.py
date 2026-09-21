@@ -90,3 +90,19 @@ async def send_telegram_reply(
         )
         r.raise_for_status()
 
+
+async def send_chat_action(chat_id: str | int, action: str = "typing") -> None:
+    """Send a chat action like 'typing' to Telegram."""
+    token = os.environ.get("TELEGRAM_TOKEN", "").strip()
+    if not token or not chat_id:
+        return
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            await client.post(
+                f"https://api.telegram.org/bot{token}/sendChatAction",
+                json={"chat_id": chat_id, "action": action},
+            )
+    except Exception:
+        pass
+
+

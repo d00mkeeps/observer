@@ -3,9 +3,11 @@ import html
 import asyncio
 import logging
 import httpx
-from notify import send_telegram_reply
+from notify import send_telegram_reply, send_chat_action
+from agent import process_telegram_message
 
 log = logging.getLogger("operator.telegram")
+
 
 _CHANNEL_ENV_VARS = [
     "TELEGRAM_CHAT_ID",
@@ -86,22 +88,25 @@ async def handle_telegram_update(update: dict) -> dict:
         log.info("Received non-text message in chat %s, skipping", chat_id)
         return {"ok": True, "skipped": "non_text"}
 
-    log.info("Received message from %s (user_id=%s, chat_id=%s): %s", user_name, user_id, chat_id, text)
+    log.info("Received query from %s (user_id=%s, chat_id=%s): %s", user_name, user_id, chat_id, text)
 
-    # Mock response: Echo message back with formatting
-    mock_reply = (
-        f"🤖 <b>[Echo Mock]</b>\n"
-        f"Hello {html.escape(user_name)}! I received your query:\n"
-        f"<blockquote><code>{html.escape(text)}</code></blockquote>\n"
-        f"<i>(2-way communication ready. Antigravity read-only agent integration is next.)</i>"
+    # Show typing indicator while agent investigates and reasons
+    await send_chat_action(chat_id=chat_id, action="typing")
+
+    # Generate response via Antigravity Agent
+    agent_reply = await process_telegram_message(
+        chat_id=chat_id,
+        user_text=text,
+        user_name=user_name,
     )
 
     await send_telegram_reply(
         chat_id=chat_id,
-        text=mock_reply,
+        text=agent_reply,
         reply_to_message_id=message_id,
     )
-    return {"ok": True, "status": "echoed"}
+    return {"ok": True, "status": "processed"}
+
 
 
 async def run_telegram_poller():

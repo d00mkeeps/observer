@@ -71,22 +71,24 @@ async def check_for_errors(client: httpx.AsyncClient, start_ns: int, end_ns: int
             suppressed = _suppressed_counts.pop(container, 0)
             _last_alert_time[container] = now
 
-            # Select most representative error line (first line)
+            # Generate 5-point Incident Card via Antigravity Agent
             sample_line = new_lines[0][1]
-            if len(sample_line) > 300:
-                sample_line = sample_line[:300] + "..."
+            try:
+                from agent import translate_error_to_incident_card
+                message = await translate_error_to_incident_card(container, sample_line)
+            except Exception as e:
+                log.warning("Agent translation failed, falling back to raw alert: %s", e)
+                ts = datetime.now().strftime("%H:%M:%S")
+                message = (
+                    f"🚨 <b>App Error</b> — <code>{html.escape(container)}</code> ({ts})\n"
+                    f"<pre>{html.escape(sample_line[:300])}</pre>"
+                )
 
-            ts = datetime.now().strftime("%H:%M:%S")
-            msg_parts = [
-                f"🚨 <b>App Error</b> — <code>{html.escape(container)}</code> ({ts})",
-                f"<pre>{html.escape(sample_line)}</pre>",
-            ]
             if suppressed > 0:
-                msg_parts.append(f"<i>(+{suppressed} similar in the last {DEBOUNCE_SECONDS // 60}m)</i>")
+                message += f"\n<i>(+{suppressed} similar in the last {DEBOUNCE_SECONDS // 60}m)</i>"
 
-            message = "\n".join(msg_parts)
             await send_telegram(message, channel="alerts")
-            log.info("Sent error alert for %s", container)
+            log.info("Sent translated incident alert for %s", container)
 
     except Exception as e:
         log.warning("Error checking Loki for logs: %s", e)
