@@ -4,8 +4,14 @@ import html
 import logging
 from google import genai
 from google.genai import types
-from tools_codebase import read_codebase_file, search_codebase, list_project_files
-from tools_observability import get_error_frequency, get_recent_logs, get_system_health
+from tools_codebase import read_codebase_file, search_codebase, list_project_files, get_codebase_overview
+from tools_observability import (
+    query_all_errors,
+    search_container_logs,
+    get_error_frequency,
+    get_recent_logs,
+    get_system_health,
+)
 
 log = logging.getLogger("operator.agent")
 
@@ -71,16 +77,17 @@ def get_genai_client() -> genai.Client | None:
 SYSTEM_INSTRUCTION = """You are Volcano Observer, an autonomous SRE and Codebase Intelligence assistant for the production host 'volcano'.
 Your role is to be a clear, human-friendly translator between raw server infrastructure/code and the engineer on their phone.
 
-Capabilities & Guidelines:
-1. You have STRICT READ-ONLY access to production codebases and container logs/metrics via your tools.
-2. Output formatting MUST use Telegram-compatible HTML tags only:
+CRITICAL BEHAVIOR RULES:
+1. COMPLETE ANSWERS ONLY: Never emit intermediate filler like "Let me check the code", "I will look into that", or promise to reply in a future turn. Always execute all necessary tools (reading code, searching logs, inspecting frequency) FIRST, and deliver the complete, final answer with code snippets and facts in the same message.
+2. THOROUGH INVESTIGATION: Whenever asked about an error, bug, codebase feature, or system state, review all relevant files and Loki logs using your tools before formulating your conclusion.
+3. STRICT READ-ONLY ACCESS: You have read-only access to all production repos and containers. Never attempt or simulate write actions on live code.
+4. TELEGRAM HTML FORMATTING: Output MUST use Telegram-compatible HTML tags only:
    - <b>bold</b>, <i>italic</i>, <code>code/identifiers</code>, <pre>code blocks</pre>, <blockquote>quotes</blockquote>.
-   - Do NOT use Markdown asterisks or standard markdown backticks.
-3. Keep responses concise, direct, and high-signal for quick reading on a mobile device.
-4. When investigating errors, classify the fix into one of 3 tiers:
-   - 🟢 Tier 1 (Trivial Patch): 1-5 line fix (e.g. null check, default fallback, env var, typo). Ready for one-tap approval once write mode is enabled.
-   - 🟡 Tier 2 (Moderate Logic): Localized function fix, edge-case logic change. Requires code review.
-   - 🔴 Tier 3 (Architectural Refactor): Schema migrations, queue architecture, breaking API change. State that this requires a workstation session, not suitable for mobile approval.
+   - Do NOT use Markdown asterisks (**) or Markdown backticks (```).
+5. FIX CLASSIFICATIONS (When proposing fixes):
+   - 🟢 Tier 1 (Trivial Patch): 1-5 line fix (e.g. null check, default fallback, env var, typo). Include <pre> diff snippet.
+   - 🟡 Tier 2 (Moderate Logic): Localized function fix, edge-case logic change.
+   - 🔴 Tier 3 (Architectural Refactor): Schema migrations, queue architecture, breaking API change. Explicitly note that a workstation is required.
 """
 
 
@@ -89,6 +96,9 @@ def _get_agent_tools():
         read_codebase_file,
         search_codebase,
         list_project_files,
+        get_codebase_overview,
+        query_all_errors,
+        search_container_logs,
         get_error_frequency,
         get_recent_logs,
         get_system_health,
@@ -99,7 +109,6 @@ async def translate_error_to_incident_card(container: str, sample_error: str) ->
     """Analyze a container error by inspecting logs, history, and codebase, and return a 5-point Incident Card."""
     client = get_genai_client()
     if not client:
-        # Fallback to structured plain summary if Gemini is not configured
         freq_info = get_error_frequency(container, days=7)
         return (
             f"🚨 <b>App Error</b> — <code>{html.escape(container)}</code>\n"
@@ -112,7 +121,7 @@ async def translate_error_to_incident_card(container: str, sample_error: str) ->
 Error snippet:
 {sample_error}
 
-Please conduct a brief investigation using your tools:
+Please conduct a full autonomous investigation using your tools:
 1. Check how frequently errors have occurred for this container in the last 7 days (use `get_error_frequency`).
 2. Search and inspect the relevant codebase to find the exact file and lines responsible for this error (use `search_codebase` / `read_codebase_file`).
 3. Construct a super short, clean, human-readable Incident Card in Telegram HTML format.
@@ -140,7 +149,7 @@ Required Incident Card Structure:
                 temperature=0.2,
             ),
         )
-        return response.text or f"🚨 <b>Error in {container}</b>\n<pre>{html.escape(sample_error[:400])}</pre>"
+        return _extract_response_text(response) or f"🚨 <b>Error in {container}</b>\n<pre>{html.escape(sample_error[:400])}</pre>"
     except Exception as e:
         log.error("Failed to generate incident card with Gemini: %s", e)
         return (
@@ -148,6 +157,21 @@ Required Incident Card Structure:
             f"<pre>{html.escape(sample_error[:350])}</pre>\n"
             f"<i>(Incident translation error: {html.escape(str(e))})</i>"
         )
+
+
+def _extract_response_text(response: any) -> str:
+    """Extract and concatenate all text parts from response candidates."""
+    if not response or not hasattr(response, "candidates") or not response.candidates:
+        return getattr(response, "text", "") or ""
+
+    parts_text = []
+    for cand in response.candidates:
+        if hasattr(cand, "content") and cand.content and hasattr(cand.content, "parts") and cand.content.parts:
+            for part in cand.content.parts:
+                if hasattr(part, "text") and part.text:
+                    parts_text.append(part.text)
+
+    return "\n".join(parts_text).strip() if parts_text else (getattr(response, "text", "") or "")
 
 
 async def process_telegram_message(chat_id: str | int, user_text: str, user_name: str) -> str:
@@ -168,13 +192,22 @@ async def process_telegram_message(chat_id: str | int, user_text: str, user_name
                 config=types.GenerateContentConfig(
                     system_instruction=SYSTEM_INSTRUCTION,
                     tools=_get_agent_tools(),
-                    temperature=0.3,
+                    temperature=0.2,
                 ),
             )
         
         chat_session = _active_chats[chat_key]
         response = chat_session.send_message(user_text)
-        return response.text or "<i>(No response generated)</i>"
+        extracted = _extract_response_text(response)
+        
+        # If response is empty or model only output an intermediate turn, follow up to get final answer
+        if not extracted or extracted.lower().startswith("let me check"):
+            follow_up = chat_session.send_message("Please provide your complete, finalized answer based on your tool inspection findings.")
+            follow_up_text = _extract_response_text(follow_up)
+            if follow_up_text:
+                extracted = follow_up_text
+
+        return extracted or "<i>(No response generated)</i>"
     except Exception as e:
         log.error("Error in process_telegram_message: %s", e)
         # Reset chat session on error

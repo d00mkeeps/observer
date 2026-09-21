@@ -1,5 +1,7 @@
 import os
 import time
+import re
+import urllib.parse
 import logging
 import httpx
 
@@ -31,6 +33,141 @@ def _loki_sync(expr: str) -> list:
     except Exception as e:
         log.warning("Sync Loki query failed: %s", e)
     return []
+
+
+def _parse_duration_seconds(duration_str: str) -> int:
+    """Convert human duration like '1h', '6h', '24h', '7d', '30m' to seconds."""
+    duration_str = duration_str.strip().lower()
+    m = re.match(r"^(\d+)([mhd])$", duration_str)
+    if not m:
+        return 86400  # Default 24 hours
+    val, unit = int(m.group(1)), m.group(2)
+    if unit == "m":
+        return val * 60
+    elif unit == "h":
+        return val * 3600
+    elif unit == "d":
+        return val * 86400
+    return 86400
+
+
+def query_all_errors(duration: str = "24h", limit_per_app: int = 5) -> str:
+    """Query Loki for all errors across all production containers in a given timeframe.
+
+    Args:
+        duration: Lookback duration (e.g. '1h', '6h', '24h', '7d'). Default is '24h'.
+        limit_per_app: Max unique sample error lines per container (default 5).
+    """
+    duration = duration.strip().lower()
+    if not re.match(r"^\d+[mhd]$", duration):
+        duration = "24h"
+
+    # 1. Aggregate error counts per container
+    agg_query = (
+        f'sum by (container) (count_over_time({{job=~".+", container!~"obs-.*"}}'
+        f' |~ "(?i)(level=error|level=fatal|error:|fatal:|exception:|traceback|panic:)" [{duration}]))'
+    )
+    
+    results = _loki_sync(agg_query)
+    if not results:
+        return f"✅ No application errors found in Loki across any containers in the last {duration}."
+
+    counts = {}
+    for r in results:
+        container = r.get("metric", {}).get("container", "unknown")
+        cnt = int(r.get("value", [0, 0])[1])
+        if cnt > 0:
+            counts[container] = cnt
+
+    if not counts:
+        return f"✅ No application errors found in Loki across any containers in the last {duration}."
+
+    total_errors = sum(counts.values())
+    secs = _parse_duration_seconds(duration)
+    start_ns = int((time.time() - secs) * 1e9)
+    end_ns = int(time.time() * 1e9)
+
+    report_lines = [
+        f"📊 Error Report Across All Apps (Last {duration}):",
+        f"Total Errors: {total_errors:,} across {len(counts)} service(s)\n",
+    ]
+
+    # 2. Fetch sample logs for each failing container
+    with httpx.Client(timeout=15.0) as client:
+        for container, count in sorted(counts.items(), key=lambda x: -x[1]):
+            report_lines.append(f"• <b>{container}</b>: {count:,} errors in last {duration}")
+            sample_query = urllib.parse.quote(
+                f'{{container="{container}"}} |~ "(?i)(level=error|level=fatal|error:|fatal:|exception:|traceback|panic:)"'
+            )
+            sample_url = f"{LOKI_URL}/loki/api/v1/query_range?query={sample_query}&start={start_ns}&end={end_ns}&limit=15"
+            try:
+                sr = client.get(sample_url)
+                if sr.status_code == 200:
+                    data = sr.json().get("data", {}).get("result", [])
+                    seen_samples = set()
+                    for stream in data:
+                        for _, line in stream.get("values", []):
+                            line_clean = line.strip()
+                            # Truncate and deduplicate
+                            snippet = line_clean[:180]
+                            if snippet not in seen_samples:
+                                seen_samples.add(snippet)
+                                report_lines.append(f"  - <code>{snippet}</code>")
+                            if len(seen_samples) >= limit_per_app:
+                                break
+                        if len(seen_samples) >= limit_per_app:
+                            break
+            except Exception as e:
+                log.warning("Failed fetching samples for %s: %s", container, e)
+            report_lines.append("")
+
+    return "\n".join(report_lines).strip()
+
+
+def search_container_logs(query: str, container: str = "", duration: str = "24h", limit: int = 30) -> str:
+    """Search Loki logs for specific keywords or patterns.
+
+    Args:
+        query: Search keyword or phrase.
+        container: Optional specific container name (e.g. 'supreme-octo-doodle-api', 'medicine-api').
+        duration: Lookback duration (e.g. '1h', '6h', '24h', '7d'). Default '24h'.
+        limit: Max lines to return (capped at 50).
+    """
+    limit = min(50, max(1, limit))
+    secs = _parse_duration_seconds(duration)
+    start_ns = int((time.time() - secs) * 1e9)
+    end_ns = int(time.time() * 1e9)
+
+    # Escape regex special characters in query
+    clean_q = re.escape(query.strip())
+    if container:
+        selector = f'{{container="{container.strip()}"}}'
+    else:
+        selector = '{job=~".+", container!~"obs-.*"}'
+
+    logql = f'{selector} |~ "(?i){clean_q}"'
+    encoded_logql = urllib.parse.quote(logql)
+    url = f"{LOKI_URL}/loki/api/v1/query_range?query={encoded_logql}&start={start_ns}&end={end_ns}&limit={limit}"
+
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            r = client.get(url)
+            if r.status_code != 200:
+                return f"Loki query returned status {r.status_code}: {r.text}"
+
+            results = r.json().get("data", {}).get("result", [])
+            if not results:
+                return f"No logs found matching '{query}' in {container or 'all containers'} (last {duration})."
+
+            matched_lines = []
+            for stream in results:
+                c_name = stream.get("stream", {}).get("container", "app")
+                for _, line in stream.get("values", []):
+                    matched_lines.append(f"[{c_name}] {line.strip()[:250]}")
+
+            return f"Found {len(matched_lines)} matches for '{query}' (last {duration}):\n" + "\n".join(matched_lines[:limit])
+    except Exception as e:
+        return f"Error searching Loki logs: {str(e)}"
 
 
 def get_error_frequency(container: str, days: int = 7) -> str:
@@ -76,24 +213,24 @@ def get_recent_logs(container: str, minutes: int = 15, limit: int = 25) -> str:
     query = f'{{container="{container}"}}'
 
     url = f"{LOKI_URL}/loki/api/v1/query_range?query={query}&start={start_ns}&end={end_ns}&limit={limit}"
-    
+
     try:
         with httpx.Client(timeout=15.0) as client:
             r = client.get(url)
             if r.status_code != 200:
                 return f"Loki query returned status {r.status_code}: {r.text}"
-            
+
             data = r.json()
             results = data.get("data", {}).get("result", [])
             if not results:
                 return f"No logs found for container '{container}' in the last {minutes} minutes."
-                
+
             lines = []
             for stream in results:
                 values = stream.get("values", [])
                 for _, line in values:
                     lines.append(line.strip())
-                    
+
             return "\n".join(lines[-limit:]) if lines else "No log lines found."
     except Exception as e:
         return f"Error querying Loki logs: {str(e)}"

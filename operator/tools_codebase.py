@@ -1,6 +1,5 @@
 import os
 import re
-import glob
 import logging
 
 log = logging.getLogger("operator.tools.codebase")
@@ -18,7 +17,7 @@ FORBIDDEN_PATTERNS = [
     r"\.git/",
 ]
 
-# Map container names to directory names inside /codebases
+# Map container names to directory names inside /codebases or /codebases/prod
 CONTAINER_REPO_MAP = {
     "volc-website": "volc",
     "supreme-octo-doodle-api": "volc",
@@ -42,21 +41,27 @@ CONTAINER_REPO_MAP = {
 
 
 def resolve_project_path(project_or_container: str) -> str | None:
-    """Resolve project name or container name to an existing folder in CODEBASES_PATH."""
+    """Resolve project name or container name to an existing folder in CODEBASES_PATH or CODEBASES_PATH/prod."""
     target_name = CONTAINER_REPO_MAP.get(project_or_container, project_or_container)
     
-    # Check direct match
-    direct_path = os.path.join(CODEBASES_PATH, target_name)
-    if os.path.isdir(direct_path):
-        return os.path.realpath(direct_path)
+    # Check possible root locations
+    search_roots = [CODEBASES_PATH, os.path.join(CODEBASES_PATH, "prod")]
 
-    # Check case-insensitive match or substring
-    if os.path.isdir(CODEBASES_PATH):
-        for entry in os.listdir(CODEBASES_PATH):
+    for base in search_roots:
+        if not os.path.isdir(base):
+            continue
+        
+        # Direct match
+        direct = os.path.join(base, target_name)
+        if os.path.isdir(direct):
+            return os.path.realpath(direct)
+
+        # Case-insensitive or substring match
+        for entry in os.listdir(base):
             if entry.lower() == target_name.lower():
-                return os.path.realpath(os.path.join(CODEBASES_PATH, entry))
+                return os.path.realpath(os.path.join(base, entry))
             if target_name.lower() in entry.lower():
-                return os.path.realpath(os.path.join(CODEBASES_PATH, entry))
+                return os.path.realpath(os.path.join(base, entry))
 
     return None
 
@@ -69,7 +74,7 @@ def is_forbidden(path: str) -> bool:
     return False
 
 
-def read_codebase_file(project: str, filepath: str, start_line: int = 1, end_line: int = 100) -> str:
+def read_codebase_file(project: str, filepath: str, start_line: int = 1, end_line: int = 120) -> str:
     """Read lines from a file in a project codebase (Strictly Read-Only).
 
     Args:
@@ -111,7 +116,7 @@ def read_codebase_file(project: str, filepath: str, start_line: int = 1, end_lin
 
 
 def search_codebase(project: str, query: str) -> str:
-    """Search for a keyword or function name across files in a project repository.
+    """Search for a keyword, symbol, or error signature across files in a project repository.
 
     Args:
         project: Project name or container name.
@@ -123,12 +128,9 @@ def search_codebase(project: str, query: str) -> str:
 
     matches = []
     query_lower = query.lower()
-    
-    # Allowed file extensions
     allowed_exts = {".py", ".ts", ".js", ".tsx", ".jsx", ".json", ".sql", ".sh", ".yml", ".yaml", ".md", ".html", ".css", ".go"}
 
     for root, dirs, files in os.walk(base_dir):
-        # Ignore noisy directories
         dirs[:] = [d for d in dirs if d not in {".git", "node_modules", ".venv", "venv", "__pycache__", ".next", "dist", "build"}]
         
         for file in files:
@@ -147,20 +149,20 @@ def search_codebase(project: str, query: str) -> str:
                     for line_num, line in enumerate(f, 1):
                         if query_lower in line.lower():
                             matches.append(f"{rel_path}:{line_num}: {line.strip()}")
-                            if len(matches) >= 20:
+                            if len(matches) >= 25:
                                 break
             except Exception:
                 continue
-        if len(matches) >= 20:
+        if len(matches) >= 25:
             break
 
     if not matches:
         return f"No matches found for '{query}' in project '{project}'."
-    return "\n".join(matches[:20])
+    return "\n".join(matches[:25])
 
 
 def list_project_files(project: str, subpath: str = "") -> str:
-    """List files in a project directory.
+    """List files and directories in a project repository.
 
     Args:
         project: Project name or container name.
@@ -187,3 +189,44 @@ def list_project_files(project: str, subpath: str = "") -> str:
         return "\n".join(entries[:40])
     except Exception as e:
         return f"Error listing files: {str(e)}"
+
+
+def get_codebase_overview(project: str) -> str:
+    """Get a high-level summary of a project's repository structure, entry points, and dependencies.
+
+    Args:
+        project: Project name or container name.
+    """
+    base_dir = resolve_project_path(project)
+    if not base_dir:
+        return f"Error: Project '{project}' not found."
+
+    summary = [f"Codebase Overview for '{project}' ({os.path.basename(base_dir)}):"]
+    
+    # Check top-level items
+    try:
+        top_items = [i for i in os.listdir(base_dir) if not is_forbidden(i) and i not in {".git", "node_modules", ".venv", "__pycache__"}]
+        summary.append(f"Top-level entries: {', '.join(sorted(top_items)[:15])}")
+    except Exception:
+        pass
+
+    # Check for requirements or package.json
+    req_file = os.path.join(base_dir, "requirements.txt")
+    pkg_file = os.path.join(base_dir, "package.json")
+    docker_file = os.path.join(base_dir, "Dockerfile")
+
+    if os.path.isfile(req_file):
+        try:
+            with open(req_file, "r") as f:
+                deps = [l.strip() for l in f if l.strip() and not l.startswith("#")]
+                summary.append(f"Python dependencies ({len(deps)}): {', '.join(deps[:10])}")
+        except Exception:
+            pass
+
+    if os.path.isfile(pkg_file):
+        summary.append("JavaScript/TypeScript project (package.json present)")
+
+    if os.path.isfile(docker_file):
+        summary.append("Docker containerized (Dockerfile present)")
+
+    return "\n".join(summary)
