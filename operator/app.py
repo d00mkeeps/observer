@@ -2,8 +2,9 @@ import html
 import logging
 import asyncio
 from datetime import datetime, timedelta
+import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from notify import send_telegram
 from context import gather_context
@@ -11,6 +12,7 @@ from diagnose import diagnose
 from report import send_daily_report, generate_daily_report
 from monitor import run_error_monitor
 from portfolio import get_system_status, record_deploy_event
+from telegram_handler import handle_telegram_update, run_telegram_poller
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 log = logging.getLogger("operator")
@@ -39,13 +41,19 @@ async def run_daily_scheduler():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: launch background workers
-    monitor_task = asyncio.create_task(run_error_monitor())
-    scheduler_task = asyncio.create_task(run_daily_scheduler())
+    workers = [
+        asyncio.create_task(run_error_monitor()),
+        asyncio.create_task(run_daily_scheduler()),
+    ]
+    if os.environ.get("TELEGRAM_POLLING", "false").lower() == "true":
+        log.info("TELEGRAM_POLLING is enabled; starting Telegram poller worker")
+        workers.append(asyncio.create_task(run_telegram_poller()))
+
     yield
     # Shutdown: gracefully cancel workers
-    monitor_task.cancel()
-    scheduler_task.cancel()
-    await asyncio.gather(monitor_task, scheduler_task, return_exceptions=True)
+    for w in workers:
+        w.cancel()
+    await asyncio.gather(*workers, return_exceptions=True)
 
 
 app = FastAPI(title="Observer Operator", lifespan=lifespan)
@@ -115,6 +123,22 @@ async def trigger_report():
     return {"ok": True, "report": report_text}
 
 
+@app.post("/telegram/webhook")
+async def telegram_webhook(
+    request: Request,
+    x_telegram_bot_api_secret_token: str | None = Header(default=None),
+):
+    secret = os.environ.get("TELEGRAM_SECRET_TOKEN", "").strip()
+    if secret and x_telegram_bot_api_secret_token != secret:
+        log.warning("Invalid Telegram webhook secret token")
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    payload = await request.json()
+    result = await handle_telegram_update(payload)
+    return result
+
+
 @app.get("/health")
 async def health():
     return {"ok": True}
+

@@ -56,3 +56,37 @@ async def send_telegram(text: str, channel: str = "default") -> None:
             },
         )
         r.raise_for_status()
+
+
+async def send_telegram_reply(
+    chat_id: str | int,
+    text: str,
+    reply_to_message_id: int | None = None,
+) -> None:
+    """Send an HTML-formatted reply to a specific Telegram chat_id.
+
+    Args:
+        chat_id:             Target Telegram chat ID.
+        text:                Message body (HTML formatted).
+        reply_to_message_id: Optional ID of the message to reply to.
+    """
+    token = os.environ.get("TELEGRAM_TOKEN", "").strip()
+    if not token or not chat_id:
+        log.warning("Telegram reply skipped: TELEGRAM_TOKEN or chat_id not configured")
+        return
+
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+    }
+    if reply_to_message_id is not None:
+        payload["reply_parameters"] = {"message_id": reply_to_message_id}
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json=payload,
+        )
+        r.raise_for_status()
+
