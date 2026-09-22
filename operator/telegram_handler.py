@@ -6,6 +6,7 @@ import httpx
 from notify import send_telegram_reply, send_chat_action
 from agent import process_telegram_message
 from patch_manager import apply_and_push_patch, reject_patch, get_pending_patches
+from commands import execute_deterministic_command
 
 log = logging.getLogger("operator.telegram")
 
@@ -86,24 +87,29 @@ async def handle_telegram_update(update: dict) -> dict:
 
     log.info("Received query from %s (user_id=%s, chat_id=%s): %s", user_name, user_id, chat_id, text)
 
-    # 1. Direct Command Interceptor: /approve
-    if text.startswith("/approve"):
-        parts = text.split(maxsplit=1)
+    clean_text = text.strip()
+    norm_text = clean_text.lower()
+    first_word = norm_text.split()[0] if norm_text else ""
+    first_word_clean = first_word[1:] if first_word.startswith("/") else first_word
+
+    # 1. Direct Command Interceptor: approve / /approve
+    if first_word_clean == "approve":
+        parts = clean_text.split(maxsplit=1)
         patch_id = parts[1].strip() if len(parts) > 1 else ""
         success, reply_msg = apply_and_push_patch(patch_id)
         await send_telegram_reply(chat_id=chat_id, text=reply_msg, reply_to_message_id=message_id)
         return {"ok": True, "status": "approved" if success else "approve_failed"}
 
-    # 2. Direct Command Interceptor: /reject
-    if text.startswith("/reject"):
-        parts = text.split(maxsplit=1)
+    # 2. Direct Command Interceptor: reject / /reject
+    if first_word_clean == "reject":
+        parts = clean_text.split(maxsplit=1)
         patch_id = parts[1].strip() if len(parts) > 1 else ""
         success, reply_msg = reject_patch(patch_id)
         await send_telegram_reply(chat_id=chat_id, text=reply_msg, reply_to_message_id=message_id)
         return {"ok": True, "status": "rejected"}
 
-    # 3. Direct Command Interceptor: /patches
-    if text == "/patches":
+    # 3. Direct Command Interceptor: patches / /patches
+    if first_word_clean in ("patches", "patch"):
         pending = get_pending_patches()
         if not pending:
             reply_msg = "ℹ️ No pending patches waiting for approval."
@@ -120,7 +126,14 @@ async def handle_telegram_update(update: dict) -> dict:
         await send_telegram_reply(chat_id=chat_id, text=reply_msg, reply_to_message_id=message_id)
         return {"ok": True, "status": "listed_patches"}
 
-    # 4. Route to Antigravity Agent for conversational reasoning & tool execution
+    # 4. Deterministic Commands Interceptor: status, errors, health, help (with subflags, no LLM)
+    deterministic_reply = await execute_deterministic_command(clean_text)
+    if deterministic_reply is not None:
+        log.info("Handled deterministic command '%s' (0 LLM tokens used)", clean_text)
+        await send_telegram_reply(chat_id=chat_id, text=deterministic_reply, reply_to_message_id=message_id)
+        return {"ok": True, "status": "deterministic_command"}
+
+    # 5. Route to Antigravity Agent for conversational reasoning & tool execution
     await send_chat_action(chat_id=chat_id, action="typing")
 
     agent_reply = await process_telegram_message(
