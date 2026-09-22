@@ -191,8 +191,16 @@ def _extract_response_text(response: any) -> str:
     return "\n".join(parts_text).strip() if parts_text else (getattr(response, "text", "") or "")
 
 
-async def process_telegram_message(chat_id: str | int, user_text: str, user_name: str) -> str:
-    """Handle conversational 2-way queries from Telegram with tool calling and history."""
+from skills import ANTI_RATIONALIZATION_RULES
+
+
+async def process_telegram_message(
+    chat_id: str | int,
+    user_text: str,
+    user_name: str,
+    active_skill: dict | None = None,
+) -> str:
+    """Handle conversational 2-way queries from Telegram with tool calling and optional skill injection."""
     client = get_genai_client()
     if not client:
         return (
@@ -203,7 +211,21 @@ async def process_telegram_message(chat_id: str | int, user_text: str, user_name
 
     chat_key = str(chat_id)
     try:
-        if chat_key not in _active_chats:
+        # If invoking an active engineering skill, format the turn with strict skill instructions
+        turn_prompt = user_text
+        if active_skill:
+            skill_name = active_skill.get("name", "skill")
+            skill_body = active_skill.get("body", "")
+            turn_prompt = (
+                f"[ACTIVE ENGINEERING SKILL: {skill_name.upper()}]\n"
+                f"{skill_body}\n"
+                f"{ANTI_RATIONALIZATION_RULES}\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"[USER INSTRUCTION]:\n{user_text}\n\n"
+                f"Execute the above workflow. If performing TDD (build), prepare the dev workspace, write tests first, run tests, and propose patch only when 100% pass."
+            )
+
+        if chat_key not in _active_chats or active_skill is not None:
             _active_chats[chat_key] = client.chats.create(
                 model=MODEL_NAME,
                 config=types.GenerateContentConfig(
@@ -214,7 +236,7 @@ async def process_telegram_message(chat_id: str | int, user_text: str, user_name
             )
         
         chat_session = _active_chats[chat_key]
-        response = chat_session.send_message(user_text)
+        response = chat_session.send_message(turn_prompt)
         extracted = _extract_response_text(response)
         
         # If response is empty or model only output an intermediate turn, follow up to get final answer

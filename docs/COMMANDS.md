@@ -1,7 +1,7 @@
 # Observer / Airwavbot Command Reference
 
 > *Auto-generated on every push via GitHub Actions. Do not edit manually.*  
-> **Last Generated:** 2026-09-22 10:05:20 UTC
+> **Last Generated:** 2026-09-22 11:18:26 UTC
 
 All commands work directly in Telegram with `@Airwavbot`. Commands are **slash-optional** (e.g. `status` and `/status` behave identically).
 

@@ -7,6 +7,7 @@ from notify import send_telegram_reply, send_chat_action
 from agent import process_telegram_message
 from patch_manager import apply_and_push_patch, reject_patch, get_pending_patches
 from commands import execute_deterministic_command
+from skills import get_skill_for_command, sync_skills_repo
 
 log = logging.getLogger("operator.telegram")
 
@@ -133,13 +134,20 @@ async def handle_telegram_update(update: dict) -> dict:
         await send_telegram_reply(chat_id=chat_id, text=deterministic_reply, reply_to_message_id=message_id)
         return {"ok": True, "status": "deterministic_command"}
 
-    # 5. Route to Antigravity Agent for conversational reasoning & tool execution
+    # 5. Phase Engineering Skills Interceptor: ideate, spec, plan, build, review, ship (Addy Osmani framework)
+    active_skill = None
+    if first_word_clean in ("ideate", "spec", "plan", "build", "review", "ship"):
+        active_skill = get_skill_for_command(first_word_clean)
+        log.info("Activated engineering skill '%s' for command '%s'", active_skill.get("name") if active_skill else "fallback", first_word_clean)
+
+    # 6. Route to Antigravity Agent for conversational reasoning & tool execution (with active skill if set)
     await send_chat_action(chat_id=chat_id, action="typing")
 
     agent_reply = await process_telegram_message(
         chat_id=chat_id,
         user_text=text,
         user_name=user_name,
+        active_skill=active_skill,
     )
 
     await send_telegram_reply(
@@ -156,6 +164,12 @@ async def register_bot_commands():
     if not token:
         return
     commands = [
+        {"command": "ideate", "description": "Brainstorm & architecture trade-offs"},
+        {"command": "spec", "description": "Draft PRD, API contract & requirements"},
+        {"command": "plan", "description": "Atomic task breakdown & verification gates"},
+        {"command": "build", "description": "TDD sandbox build (Red -> Green)"},
+        {"command": "review", "description": "Security, quality & edge-case audit"},
+        {"command": "ship", "description": "Deploy patch & release summary"},
         {"command": "status", "description": "Fleet & host resource overview"},
         {"command": "errors", "description": "Loki error audit across all apps"},
         {"command": "docs", "description": "Living API & architecture documentation"},
@@ -183,6 +197,9 @@ async def run_telegram_poller():
     if not token:
         log.warning("Telegram poller not started: TELEGRAM_TOKEN is missing")
         return
+
+    # Sync skills repository in background
+    sync_skills_repo()
 
     # Set up Telegram menu commands in UI
     await register_bot_commands()
