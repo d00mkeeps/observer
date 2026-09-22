@@ -150,12 +150,42 @@ async def handle_telegram_update(update: dict) -> dict:
     return {"ok": True, "status": "processed"}
 
 
+async def register_bot_commands():
+    """Register standard commands with Telegram API so they appear in the UI menu."""
+    token = os.environ.get("TELEGRAM_TOKEN", "").strip()
+    if not token:
+        return
+    commands = [
+        {"command": "status", "description": "Fleet & host resource overview"},
+        {"command": "errors", "description": "Loki error audit across all apps"},
+        {"command": "docs", "description": "Living API & architecture documentation"},
+        {"command": "patches", "description": "Pending sandbox patches awaiting approval"},
+        {"command": "health", "description": "Volcano host CPU, RAM, Disk, Uptime"},
+        {"command": "help", "description": "Command cheat sheet & guide"},
+    ]
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.post(
+                f"https://api.telegram.org/bot{token}/setMyCommands",
+                json={"commands": commands},
+            )
+            if r.status_code == 200:
+                log.info("Registered Telegram menu commands successfully")
+            else:
+                log.warning("setMyCommands returned %d: %s", r.status_code, r.text)
+    except Exception as e:
+        log.warning("Failed to register Telegram menu commands: %s", e)
+
+
 async def run_telegram_poller():
     """Background long-polling worker for Telegram updates."""
     token = os.environ.get("TELEGRAM_TOKEN", "").strip()
     if not token:
         log.warning("Telegram poller not started: TELEGRAM_TOKEN is missing")
         return
+
+    # Set up Telegram menu commands in UI
+    await register_bot_commands()
 
     log.info("Starting Telegram long-polling worker...")
     offset = 0
