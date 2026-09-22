@@ -124,6 +124,17 @@ from tools_research import (
     search_app_store_reviews,
     get_research_quota_status,
 )
+from cost_tracker import cost_tracker
+
+
+def get_cost_breakdown(app: str = "", timeframe: str = "month") -> str:
+    """Check current Month-to-Date and daily infrastructure, LLM token, and API costs across Volcano.
+
+    Args:
+        app: Optional specific app name to filter by (e.g. 'volc', 'clearbox', 'observer', 'horizon').
+        timeframe: 'month' (default) or 'today'.
+    """
+    return cost_tracker.format_telegram_card(app_filter=app if app else None, timeframe=timeframe)
 
 
 def _get_agent_tools():
@@ -143,6 +154,7 @@ def _get_agent_tools():
         search_arxiv,
         search_app_store_reviews,
         get_research_quota_status,
+        get_cost_breakdown,
         prepare_dev_workspace,
         write_dev_file,
         run_dev_tests,
@@ -194,6 +206,7 @@ Required Incident Card Structure:
                 temperature=0.2,
             ),
         )
+        _record_response_tokens(response, app=container)
         return _extract_response_text(response) or f"🚨 <b>Error in {container}</b>\n<pre>{html.escape(sample_error[:400])}</pre>"
     except Exception as e:
         log.error("Failed to generate incident card with Gemini: %s", e)
@@ -202,6 +215,23 @@ Required Incident Card Structure:
             f"<pre>{html.escape(sample_error[:350])}</pre>\n"
             f"<i>(Incident translation error: {html.escape(str(e))})</i>"
         )
+
+
+def _record_response_tokens(response: any, app: str = "observer"):
+    """Extract and record token usage from Gemini response metadata."""
+    if not response:
+        return
+    usage = getattr(response, "usage_metadata", None)
+    if usage:
+        in_tok = getattr(usage, "prompt_token_count", 0) or 0
+        out_tok = getattr(usage, "candidates_token_count", 0) or 0
+        if in_tok > 0 or out_tok > 0:
+            cost_tracker.record_llm_usage(
+                app=app,
+                model=MODEL_NAME,
+                input_tokens=in_tok,
+                output_tokens=out_tok,
+            )
 
 
 def _extract_response_text(response: any) -> str:
@@ -265,11 +295,13 @@ async def process_telegram_message(
         
         chat_session = _active_chats[chat_key]
         response = chat_session.send_message(turn_prompt)
+        _record_response_tokens(response, app="observer")
         extracted = _extract_response_text(response)
         
         # If response is empty or model only output an intermediate turn, follow up to get final answer
         if not extracted or extracted.lower().startswith("let me check"):
             follow_up = chat_session.send_message("Please provide your complete, finalized answer based on your tool inspection findings.")
+            _record_response_tokens(follow_up, app="observer")
             follow_up_text = _extract_response_text(follow_up)
             if follow_up_text:
                 extracted = follow_up_text

@@ -140,6 +140,11 @@ def search_google_web(query: str, max_results: int = 5) -> str:
 
     _rate_limiter.throttle("google_web")
     _quota_tracker.consume("google_web")
+    try:
+        from cost_tracker import cost_tracker
+        cost_tracker.record_search_usage(app="observer")
+    except Exception:
+        pass
 
     max_results = min(8, max(1, max_results))
     api_key = os.environ.get("GOOGLE_SEARCH_API_KEY") or os.environ.get("GEMINI_API_KEY", "")

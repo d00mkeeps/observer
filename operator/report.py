@@ -3,7 +3,10 @@ import html
 import logging
 import urllib.parse
 from datetime import datetime
-import httpx
+try:
+    import httpx
+except ImportError:
+    httpx = None
 from notify import send_telegram
 
 log = logging.getLogger("operator.report")
@@ -107,6 +110,17 @@ async def generate_daily_report() -> str:
             lines.append(f"  • <code>{html.escape(c)}</code>: {n:,}")
         if len(errors) > 5:
             lines.append(f"  <i>… and {len(errors) - 5} more services</i>")
+
+    # Financial Cost Summary
+    try:
+        from cost_tracker import cost_tracker
+        summary = cost_tracker.get_summary(timeframe="month")
+        lines.append("━━━━━━━━━━━━━━━━━━━━")
+        lines.append(f"💳 <b>MTD Spend:</b> <code>${summary['total_cost_usd']:.4f} USD</code>")
+        lines.append(f"  • Gemini AI: <code>${summary['by_service']['gemini_llm']['cost']:.4f}</code>")
+        lines.append(f"  • Host Compute: <code>${summary['by_service']['infrastructure']['cost']:.4f}</code>")
+    except Exception as e:
+        log.warning("Failed to append cost summary to daily report: %s", e)
 
     return "\n".join(lines)
 

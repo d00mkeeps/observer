@@ -1,7 +1,12 @@
 import logging
 import os
 import re
-import httpx
+import json
+import urllib.request
+try:
+    import httpx
+except ImportError:
+    httpx = None
 
 log = logging.getLogger("operator.notify")
 
@@ -24,6 +29,24 @@ def _strip_html_tags(text: str) -> str:
     return re.sub(r"<[^>]+>", "", text)
 
 
+def _send_telegram_sync(token: str, payload: dict) -> bool:
+    """Fallback synchronous Telegram message dispatcher via urllib."""
+    try:
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        data_bytes = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=data_bytes,
+            headers={"Content-Type": "application/json", "User-Agent": "VolcanoObserver/1.0"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10.0) as resp:
+            return resp.status == 200
+    except Exception as e:
+        log.warning("urllib Telegram send error: %s", e)
+        return False
+
+
 async def send_telegram(text: str, channel: str = "default") -> None:
     """Send an HTML-formatted message to a Telegram chat."""
     token = os.environ.get("TELEGRAM_TOKEN", "").strip()
@@ -41,26 +64,28 @@ async def send_telegram(text: str, channel: str = "default") -> None:
     if len(text) > 4000:
         text = text[:3950] + "\n\n<i>… (message truncated)</i>"
 
-    async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            json={
-                "chat_id":    chat_id,
-                "text":       text,
-                "parse_mode": "HTML",
-            },
-        )
-        # If HTML parse error, fallback to plain text
-        if r.status_code == 400:
-            log.warning("Telegram HTML send error (%s), falling back to plain text", r.text)
+    payload = {
+        "chat_id":    chat_id,
+        "text":       text,
+        "parse_mode": "HTML",
+    }
+
+    if httpx is not None:
+        async with httpx.AsyncClient(timeout=10) as client:
             r = await client.post(
                 f"https://api.telegram.org/bot{token}/sendMessage",
-                json={
-                    "chat_id": chat_id,
-                    "text":    _strip_html_tags(text),
-                },
+                json=payload,
             )
-        r.raise_for_status()
+            if r.status_code == 400:
+                log.warning("Telegram HTML send error (%s), falling back to plain text", r.text)
+                payload["text"] = _strip_html_tags(text)
+                payload.pop("parse_mode", None)
+                await client.post(
+                    f"https://api.telegram.org/bot{token}/sendMessage",
+                    json=payload,
+                )
+    else:
+        _send_telegram_sync(token, payload)
 
 
 async def send_telegram_reply(
@@ -86,21 +111,22 @@ async def send_telegram_reply(
     if reply_to_message_id is not None:
         payload["reply_parameters"] = {"message_id": reply_to_message_id}
 
-    async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            json=payload,
-        )
-        # If HTML parse error or malformed tag, retry without HTML parse_mode
-        if r.status_code == 400:
-            log.warning("Telegram reply HTML parse error (%s); falling back to plain text", r.text)
-            payload["text"] = _strip_html_tags(text)
-            payload.pop("parse_mode", None)
+    if httpx is not None:
+        async with httpx.AsyncClient(timeout=10) as client:
             r = await client.post(
                 f"https://api.telegram.org/bot{token}/sendMessage",
                 json=payload,
             )
-        r.raise_for_status()
+            if r.status_code == 400:
+                log.warning("Telegram reply HTML parse error (%s); falling back to plain text", r.text)
+                payload["text"] = _strip_html_tags(text)
+                payload.pop("parse_mode", None)
+                await client.post(
+                    f"https://api.telegram.org/bot{token}/sendMessage",
+                    json=payload,
+                )
+    else:
+        _send_telegram_sync(token, payload)
 
 
 async def send_chat_action(chat_id: str | int, action: str = "typing") -> None:
@@ -108,11 +134,12 @@ async def send_chat_action(chat_id: str | int, action: str = "typing") -> None:
     token = os.environ.get("TELEGRAM_TOKEN", "").strip()
     if not token or not chat_id:
         return
-    try:
-        async with httpx.AsyncClient(timeout=5) as client:
-            await client.post(
-                f"https://api.telegram.org/bot{token}/sendChatAction",
-                json={"chat_id": chat_id, "action": action},
-            )
-    except Exception:
-        pass
+    if httpx is not None:
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                await client.post(
+                    f"https://api.telegram.org/bot{token}/sendChatAction",
+                    json={"chat_id": chat_id, "action": action},
+                )
+        except Exception:
+            pass

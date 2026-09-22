@@ -1,7 +1,10 @@
 import time
 import logging
 from datetime import datetime
-import httpx
+try:
+    import httpx
+except ImportError:
+    httpx = None
 from report import _prom, _loki
 
 log = logging.getLogger("operator.portfolio")

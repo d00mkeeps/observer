@@ -13,6 +13,7 @@ from report import send_daily_report, generate_daily_report
 from monitor import run_error_monitor
 from portfolio import get_system_status, record_deploy_event
 from tools_observability import push_loki_log
+from cost_tracker import cost_tracker
 from telegram_handler import handle_telegram_update, run_telegram_poller
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -95,8 +96,9 @@ async def receive_deploy(request: Request):
     actor = html.escape(data.get("actor", ""))
     details = html.escape(data.get("message", ""))
 
-    # Record in portfolio tracker
+    # Record in portfolio tracker & cost ledger
     record_deploy_event(project=project, status=status, commit=commit, actor=actor, message=details)
+    cost_tracker.record_ci_usage(app=project, duration_seconds=45)
 
     icon = "🚀" if status == "success" else "❌"
     lines = [f"{icon} <b>Deploy {status.upper()}</b> — <code>{project}</code>"]
@@ -139,7 +141,7 @@ async def receive_ci_failure(request: Request):
     }
     push_loki_log(labels=loki_labels, message=log_msg)
 
-    # 2. Record failure in portfolio tracker
+    # 2. Record failure in portfolio tracker & cost ledger
     project_slug = repo.split("/")[-1].lower() if "/" in repo else repo.lower()
     record_deploy_event(
         project=project_slug,
@@ -148,6 +150,7 @@ async def receive_ci_failure(request: Request):
         actor=actor,
         message=f"CI Failed: {error_step} ({workflow})",
     )
+    cost_tracker.record_ci_usage(app=project_slug, duration_seconds=30)
 
     # 3. Dispatch Incident Alert Card to Telegram (#alerts)
     alert_lines = [
@@ -165,6 +168,12 @@ async def receive_ci_failure(request: Request):
     log.warning("CI failure received from %s (workflow: %s, step: %s)", repo, workflow, error_step)
     await send_telegram(alert_msg, channel="alerts")
     return {"ok": True, "logged_to_loki": True}
+
+
+@app.get("/costs")
+async def get_costs_endpoint(app: str | None = None, timeframe: str = "month"):
+    """Retrieve Volcano ecosystem cost breakdown by app and service."""
+    return cost_tracker.get_summary(timeframe=timeframe)
 
 
 @app.get("/status")

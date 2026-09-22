@@ -175,7 +175,8 @@ async def register_bot_commands():
         return
     commands = [
         {"command": "status", "description": "Fleet health & Volcano resource gauges"},
-        {"command": "research", "description": "Live web market research & competitor teardown"},
+        {"command": "cost", "description": "Spend breakdown by app & service (LLM, host, search)"},
+        {"command": "research", "description": "Live web, arXiv, Google Books, Trends & App Store"},
         {"command": "ideate", "description": "Architecture options & trade-off analysis"},
         {"command": "spec", "description": "Draft PRD, API contract & requirements"},
         {"command": "plan", "description": "Atomic task breakdown & verification gates"},

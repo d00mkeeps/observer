@@ -2,8 +2,14 @@ import os
 import re
 import html
 import time
+import json
+import urllib.parse
+import urllib.request
 from datetime import datetime
-import httpx
+try:
+    import httpx
+except ImportError:
+    httpx = None
 from portfolio import PROJECT_METADATA, PROJECT_CONTAINERS, _recent_deploys
 from patch_manager import get_pending_patches
 
@@ -11,23 +17,43 @@ PROMETHEUS_URL = os.environ.get("PROMETHEUS_URL", "http://prometheus:9090")
 LOKI_URL = os.environ.get("LOKI_URL", "http://loki:3100")
 
 
-async def _prom_query(client: httpx.AsyncClient, expr: str) -> list:
-    try:
-        r = await client.get(f"{PROMETHEUS_URL}/api/v1/query", params={"query": expr}, timeout=8.0)
-        if r.status_code == 200:
-            return r.json().get("data", {}).get("result", [])
-    except Exception:
-        pass
+async def _prom_query(client: any, expr: str) -> list:
+    if client and hasattr(client, "get"):
+        try:
+            r = await client.get(f"{PROMETHEUS_URL}/api/v1/query", params={"query": expr}, timeout=8.0)
+            if r.status_code == 200:
+                return r.json().get("data", {}).get("result", [])
+        except Exception:
+            pass
+    else:
+        try:
+            url = f"{PROMETHEUS_URL}/api/v1/query?query={urllib.parse.quote(expr)}"
+            req = urllib.request.Request(url, headers={"User-Agent": "VolcanoObserver/1.0"})
+            with urllib.request.urlopen(req, timeout=8.0) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                return data.get("data", {}).get("result", [])
+        except Exception:
+            pass
     return []
 
 
-async def _loki_query(client: httpx.AsyncClient, expr: str) -> list:
-    try:
-        r = await client.get(f"{LOKI_URL}/loki/api/v1/query", params={"query": expr}, timeout=10.0)
-        if r.status_code == 200:
-            return r.json().get("data", {}).get("result", [])
-    except Exception:
-        pass
+async def _loki_query(client: any, expr: str) -> list:
+    if client and hasattr(client, "get"):
+        try:
+            r = await client.get(f"{LOKI_URL}/loki/api/v1/query", params={"query": expr}, timeout=10.0)
+            if r.status_code == 200:
+                return r.json().get("data", {}).get("result", [])
+        except Exception:
+            pass
+    else:
+        try:
+            url = f"{LOKI_URL}/loki/api/v1/query?query={urllib.parse.quote(expr)}"
+            req = urllib.request.Request(url, headers={"User-Agent": "VolcanoObserver/1.0"})
+            with urllib.request.urlopen(req, timeout=10.0) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                return data.get("data", {}).get("result", [])
+        except Exception:
+            pass
     return []
 
 
@@ -317,19 +343,37 @@ def handle_docs_command(args: list[str]) -> str:
     )
 
 
+def handle_cost_command(args: list[str]) -> str:
+    """Handle deterministic `cost` / `costs` command with subflags."""
+    from cost_tracker import cost_tracker
+    if not args:
+        return cost_tracker.format_telegram_card(app_filter=None, timeframe="month")
+
+    first = args[0].lower().strip()
+    if first in ("today", "day", "24h"):
+        return cost_tracker.format_telegram_card(app_filter=None, timeframe="today")
+    if first in ("month", "mtd"):
+        return cost_tracker.format_telegram_card(app_filter=None, timeframe="month")
+
+    # Specific app lookup (e.g. /cost volc, /cost clearbox, /cost observer)
+    timeframe = "today" if len(args) > 1 and args[1].lower() in ("today", "day") else "month"
+    return cost_tracker.format_telegram_card(app_filter=first, timeframe=timeframe)
+
+
 def handle_help_command() -> str:
-    """Return deterministic cheat sheet and command guide."""
+    """Handle deterministic `help` command."""
     return (
-        "🤖 <b>Observer / Airwavbot Commands</b>\n\n"
-        "<b>🏗️ SDLC Engineering Skills (Addy Osmani Framework):</b>\n"
-        "• <code>/research &lt;topic&gt;</code> — Live web market research & competitor teardown\n"
-        "• <code>/ideate &lt;idea&gt;</code> — Architecture trade-offs & concept design\n"
-        "• <code>/spec &lt;feature&gt;</code> — Formal PRD, API contracts & acceptance criteria\n"
-        "• <code>/plan &lt;feature&gt;</code> — Atomic task breakdown & verification gates\n"
-        "• <code>/build &lt;feature&gt;</code> — Test-Driven Development (Red ➔ Green in sandbox)\n"
+        "🤖 <b>Volcano Operator & SDLC Assistant</b>\n\n"
+        "<b>🛠️ Engineering Skills (Addy Osmani SDLC Framework):</b>\n"
+        "• <code>/research &lt;topic|competitor&gt;</code> — Live web, arXiv, Google Books, Trends & App Store teardown\n"
+        "• <code>/ideate &lt;feature&gt;</code> — Architecture options & trade-off analysis\n"
+        "• <code>/spec &lt;feature&gt;</code> — Draft PRD, API contract & test acceptance criteria\n"
+        "• <code>/plan &lt;spec&gt;</code> — Atomic task breakdown & verification gates\n"
+        "• <code>/build &lt;plan&gt;</code> — TDD sandbox build (Red -> Green in dev workspace)\n"
         "• <code>/review &lt;patch|code&gt;</code> — Security, quality & edge-case audit\n"
         "• <code>/ship &lt;patch_id&gt;</code> — Verified release notes & deployment\n\n"
         "<b>⚡ Fleet & Ops Commands (Instant, 0 Tokens):</b>\n"
+        "• <code>/cost</code> / <code>/costs [app]</code> — Month-to-date and daily spend breakdown by app & service\n"
         "• <code>/status</code> — Overview of Volcano host, projects & errors\n"
         "• <code>/status &lt;project&gt;</code> — Detail for project (e.g. <code>status volc</code>, <code>status horizon</code>)\n"
         "• <code>/status -v</code> / <code>status --all</code> — Expanded container matrix\n"
@@ -363,6 +407,9 @@ async def execute_deterministic_command(text: str) -> str | None:
 
     cmd = parts[0].lower()
     args = parts[1:]
+
+    if cmd in ("cost", "costs", "spend", "billing"):
+        return handle_cost_command(args)
 
     if cmd in ("status", "stat", "st"):
         return await handle_status_command(args)
