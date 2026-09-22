@@ -29,6 +29,9 @@ class TestQuotaAndRateLimiter(unittest.TestCase):
         self.assertTrue(can_call)
         tracker.consume("test_service")
 
+        remaining_str = tracker.get_remaining_info("test_service")
+        self.assertIn("Quota remaining: 1/2 calls today", remaining_str)
+
         can_call, err = tracker.can_consume("test_service")
         self.assertTrue(can_call)
         tracker.consume("test_service")
@@ -37,6 +40,13 @@ class TestQuotaAndRateLimiter(unittest.TestCase):
         can_call, err = tracker.can_consume("test_service")
         self.assertFalse(can_call)
         self.assertIn("Daily free quota reached", err)
+
+    def test_get_research_quota_status(self):
+        tracker = DailyQuotaTracker()
+        status = tracker.get_all_status()
+        self.assertIn("Research Daily Quotas", status)
+        self.assertIn("google_web", status)
+        self.assertIn("arxiv", status)
 
     def test_rate_limiter_min_interval(self):
         limiter = RateLimiter()

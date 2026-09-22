@@ -122,6 +122,7 @@ from tools_research import (
     search_google_trends,
     search_arxiv,
     search_app_store_reviews,
+    get_research_quota_status,
 )
 
 
@@ -141,6 +142,7 @@ def _get_agent_tools():
         search_google_trends,
         search_arxiv,
         search_app_store_reviews,
+        get_research_quota_status,
         prepare_dev_workspace,
         write_dev_file,
         run_dev_tests,

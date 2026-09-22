@@ -8,7 +8,8 @@ Provides rate-limited, zero-cost tools for:
 - Apple App Store (Competitor iOS app reviews, ratings & user pain points)
 
 Enforces strict daily budget ceilings and sliding-window rate limiters to prevent
-rogue AI loops and avoid unexpected API expenses.
+rogue AI loops and avoid unexpected API expenses. All responses include real-time
+remaining quota metadata so agents can plan and budget their tool calls.
 """
 
 import os
@@ -66,6 +67,22 @@ class DailyQuotaTracker:
         self._counts[service] = self._counts.get(service, 0) + 1
         log.info("Quota consumed for %s: %d/%d today", service, self._counts[service], self.DAILY_LIMITS.get(service, 50))
 
+    def get_remaining_info(self, service: str) -> str:
+        self._check_and_reset()
+        limit = self.DAILY_LIMITS.get(service, 50)
+        current = self._counts.get(service, 0)
+        remaining = max(0, limit - current)
+        return f"\n\n<i>[Quota remaining: {remaining}/{limit} calls today]</i>"
+
+    def get_all_status(self) -> str:
+        self._check_and_reset()
+        lines = ["📊 <b>Research Daily Quotas & Rate Limits:</b>\n"]
+        for svc, limit in self.DAILY_LIMITS.items():
+            used = self._counts.get(svc, 0)
+            rem = max(0, limit - used)
+            lines.append(f"• <code>{svc}</code>: <b>{rem}/{limit}</b> remaining today (used {used})")
+        return "\n".join(lines)
+
 
 class RateLimiter:
     """Sliding-window throttler to prevent burst requests and respect service terms."""
@@ -95,6 +112,11 @@ class RateLimiter:
 
 _quota_tracker = DailyQuotaTracker()
 _rate_limiter = RateLimiter()
+
+
+def get_research_quota_status() -> str:
+    """Check remaining daily call budgets and rate limits across all research services."""
+    return _quota_tracker.get_all_status()
 
 
 # ---------------------------------------------------------------------------
@@ -128,6 +150,7 @@ def search_google_web(query: str, max_results: int = 5) -> str:
             "ℹ️ <b>Google Custom Search</b>: <code>GOOGLE_CSE_ID</code> is not configured in <code>.env</code>.\n"
             "To enable Google Search, create a free Custom Search Engine at https://programmablesearchengine.google.com "
             "and add <code>GOOGLE_CSE_ID</code> to your environment."
+            + _quota_tracker.get_remaining_info("google_web")
         )
 
     url = (
@@ -145,7 +168,7 @@ def search_google_web(query: str, max_results: int = 5) -> str:
 
         items = data.get("items", [])
         if not items:
-            return f"No Google search results found for: <code>{html.escape(query)}</code>"
+            return f"No Google search results found for: <code>{html.escape(query)}</code>" + _quota_tracker.get_remaining_info("google_web")
 
         lines = [f"🔍 <b>Google Search Results for:</b> <i>{html.escape(query)}</i>\n"]
         for item in items[:max_results]:
@@ -154,14 +177,14 @@ def search_google_web(query: str, max_results: int = 5) -> str:
             snippet = html.escape(item.get("snippet", "").replace("\n", " "))
             lines.append(f"• <b>{title}</b>\n  {snippet}\n  🔗 <a href=\"{link}\">{link}</a>")
 
-        return "\n\n".join(lines)
+        return "\n\n".join(lines) + _quota_tracker.get_remaining_info("google_web")
 
     except urllib.error.HTTPError as e:
         log.warning("Google Custom Search HTTP error %d: %s", e.code, e.reason)
-        return f"⚠️ <b>Google Search Error:</b> HTTP {e.code} ({html.escape(e.reason)}). Check API key and CSE ID."
+        return f"⚠️ <b>Google Search Error:</b> HTTP {e.code} ({html.escape(e.reason)}). Check API key and CSE ID." + _quota_tracker.get_remaining_info("google_web")
     except Exception as e:
         log.error("Google Custom Search exception: %s", e)
-        return f"⚠️ <b>Google Search Error:</b> {html.escape(str(e))}"
+        return f"⚠️ <b>Google Search Error:</b> {html.escape(str(e))}" + _quota_tracker.get_remaining_info("google_web")
 
 
 # ---------------------------------------------------------------------------
@@ -205,7 +228,7 @@ def search_google_books(query: str, max_results: int = 5) -> str:
 
         items = data.get("items", [])
         if not items:
-            return f"No published books found for: <code>{html.escape(query)}</code>"
+            return f"No published books found for: <code>{html.escape(query)}</code>" + _quota_tracker.get_remaining_info("google_books")
 
         lines = [f"📚 <b>Google Books Literature for:</b> <i>{html.escape(query)}</i>\n"]
         for item in items[:max_results]:
@@ -225,11 +248,11 @@ def search_google_books(query: str, max_results: int = 5) -> str:
                 f"  🔗 <a href=\"{info_link}\">Google Books Link</a>"
             )
 
-        return "\n\n".join(lines)
+        return "\n\n".join(lines) + _quota_tracker.get_remaining_info("google_books")
 
     except Exception as e:
         log.error("Google Books API error: %s", e)
-        return f"⚠️ <b>Google Books Error:</b> {html.escape(str(e))}"
+        return f"⚠️ <b>Google Books Error:</b> {html.escape(str(e))}" + _quota_tracker.get_remaining_info("google_books")
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +276,6 @@ def search_google_trends(keyword: str) -> str:
     _rate_limiter.throttle("google_trends")
     _quota_tracker.consume("google_trends")
 
-    # Use Google Trends Autocomplete & Exploration endpoints
     url = f"https://trends.google.com/trends/api/autocomplete/{urllib.parse.quote(clean_kw)}?hl=en-US"
 
     try:
@@ -280,6 +302,7 @@ def search_google_trends(keyword: str) -> str:
                 f"📈 <b>Google Trends Exploration:</b> <code>{html.escape(keyword)}</code>\n"
                 f"No specific trending topic entities found. View live search graph at:\n"
                 f"🔗 <a href=\"https://trends.google.com/trends/explore?q={urllib.parse.quote(keyword)}\">Google Trends Explore</a>"
+                + _quota_tracker.get_remaining_info("google_trends")
             )
 
         lines = [
@@ -288,12 +311,11 @@ def search_google_trends(keyword: str) -> str:
         for t in topics[:5]:
             title = html.escape(t.get("title", ""))
             topic_type = html.escape(t.get("type", "Topic"))
-            mid = t.get("mid", "")
             lines.append(f"• <b>{title}</b> (<code>{topic_type}</code>)")
 
         explore_url = f"https://trends.google.com/trends/explore?q={urllib.parse.quote(keyword)}"
         lines.append(f"\n📊 <b>Explore Live Graph & Breakouts:</b>\n🔗 <a href=\"{explore_url}\">{explore_url}</a>")
-        return "\n".join(lines)
+        return "\n".join(lines) + _quota_tracker.get_remaining_info("google_trends")
 
     except Exception as e:
         log.warning("Google Trends query error for '%s': %s", keyword, e)
@@ -301,6 +323,7 @@ def search_google_trends(keyword: str) -> str:
         return (
             f"📈 <b>Google Trends for '{html.escape(clean_kw)}':</b>\n"
             f"🔗 <a href=\"{explore_url}\">View Live Trends & Regional Breakdown</a>"
+            + _quota_tracker.get_remaining_info("google_trends")
         )
 
 
@@ -346,7 +369,7 @@ def search_arxiv(query: str, max_results: int = 5) -> str:
 
         entries = root.findall("atom:entry", ns)
         if not entries:
-            return f"No arXiv academic papers found for: <code>{html.escape(query)}</code>"
+            return f"No arXiv academic papers found for: <code>{html.escape(query)}</code>" + _quota_tracker.get_remaining_info("arxiv")
 
         lines = [f"🔬 <b>arXiv Academic Papers for:</b> <i>{html.escape(query)}</i>\n"]
         for entry in entries[:max_results]:
@@ -378,11 +401,11 @@ def search_arxiv(query: str, max_results: int = 5) -> str:
                 f"  🔗 <a href=\"{html.escape(paper_url)}\">{html.escape(paper_url)}</a>"
             )
 
-        return "\n\n".join(lines)
+        return "\n\n".join(lines) + _quota_tracker.get_remaining_info("arxiv")
 
     except Exception as e:
         log.error("arXiv search error: %s", e)
-        return f"⚠️ <b>arXiv Error:</b> {html.escape(str(e))}"
+        return f"⚠️ <b>arXiv Error:</b> {html.escape(str(e))}" + _quota_tracker.get_remaining_info("arxiv")
 
 
 # ---------------------------------------------------------------------------
@@ -421,14 +444,12 @@ def search_app_store_reviews(app_name_or_id: str, country: str = "us", max_resul
                 data = json.loads(resp.read().decode("utf-8"))
             results = data.get("results", [])
             if not results:
-                return f"No iOS app found on Apple App Store for name: <code>{html.escape(target)}</code>"
+                return f"No iOS app found on Apple App Store for name: <code>{html.escape(target)}</code>" + _quota_tracker.get_remaining_info("app_store")
             app_id = str(results[0].get("trackId", ""))
             app_title = results[0].get("trackName", target)
-            avg_rating = results[0].get("averageUserRating", "N/A")
-            rating_count = results[0].get("userRatingCount", 0)
         except Exception as e:
             log.warning("App store lookup failed: %s", e)
-            return f"⚠️ <b>App Store Lookup Error:</b> {html.escape(str(e))}"
+            return f"⚠️ <b>App Store Lookup Error:</b> {html.escape(str(e))}" + _quota_tracker.get_remaining_info("app_store")
 
     # Query Apple RSS JSON Feed for Customer Reviews
     rss_url = f"https://itunes.apple.com/{country}/rss/customerreviews/id={app_id}/sortBy=mostRecent/json"
@@ -439,7 +460,7 @@ def search_app_store_reviews(app_name_or_id: str, country: str = "us", max_resul
 
         entries = data.get("feed", {}).get("entry", [])
         if not entries or len(entries) <= 1:
-            return f"No customer reviews found for <b>{html.escape(app_title)}</b> (ID: <code>{app_id}</code>) in country <code>{country}</code>."
+            return f"No customer reviews found for <b>{html.escape(app_title)}</b> (ID: <code>{app_id}</code>) in country <code>{country}</code>." + _quota_tracker.get_remaining_info("app_store")
 
         # The first entry in Apple RSS is metadata about the app itself; subsequent entries are reviews
         review_entries = entries[1:]
@@ -462,12 +483,12 @@ def search_app_store_reviews(app_name_or_id: str, country: str = "us", max_resul
                 f"  <blockquote>{content_snip}</blockquote>"
             )
 
-        return "\n\n".join(lines)
+        return "\n\n".join(lines) + _quota_tracker.get_remaining_info("app_store")
 
     except urllib.error.HTTPError as e:
         if e.code == 404:
-            return f"No reviews found on App Store for App ID <code>{app_id}</code> in country <code>{country}</code>."
-        return f"⚠️ <b>App Store Error:</b> HTTP {e.code} ({html.escape(e.reason)})"
+            return f"No reviews found on App Store for App ID <code>{app_id}</code> in country <code>{country}</code>." + _quota_tracker.get_remaining_info("app_store")
+        return f"⚠️ <b>App Store Error:</b> HTTP {e.code} ({html.escape(e.reason)})" + _quota_tracker.get_remaining_info("app_store")
     except Exception as e:
         log.error("App Store review fetching error: %s", e)
-        return f"⚠️ <b>App Store Error:</b> {html.escape(str(e))}"
+        return f"⚠️ <b>App Store Error:</b> {html.escape(str(e))}" + _quota_tracker.get_remaining_info("app_store")
