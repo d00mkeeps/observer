@@ -16,7 +16,7 @@ Autonomous Site Reliability Engineering (SRE), real-time log monitoring, inciden
 
 *Auto-generated on every push to `main`:*
 
-* 📘 **[API Reference](docs/API.md)**: Interactive route catalog (7 registered FastAPI endpoints).
+* 📘 **[API Reference](docs/API.md)**: Interactive route catalog (8 registered FastAPI endpoints).
 * 🏗️ **[Architecture & Topology](docs/ARCHITECTURE.md)**: Interactive Mermaid service mesh, isolation boundaries, and container specs.
 * ⚡ **[Command Reference](docs/COMMANDS.md)**: Deterministic `@Airwavbot` commands, subflags, and conversational AI features.
 * 🛠️ **[Rollout Guide](docs/TEMPLATES/AUTO_DOCS_GUIDE.md)**: Standard template for rolling auto-docs out to other Volcano repositories.
