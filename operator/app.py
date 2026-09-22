@@ -70,6 +70,7 @@ app.add_middleware(
 
 @app.post("/alert")
 async def receive_alert(request: Request):
+    """Receive and diagnose Prometheus Alertmanager alerts, translating them into 5-point incident cards and dispatching to Telegram."""
     payload = await request.json()
     for alert in payload.get("alerts", []):
         labels = alert.get("labels", {})
@@ -85,6 +86,7 @@ async def receive_alert(request: Request):
 
 @app.post("/deploy")
 async def receive_deploy(request: Request):
+    """Receive deployment notifications from GitHub Actions workflows, update portfolio state, and post summary to Telegram."""
     data = await request.json()
     project = html.escape(data.get("project", "unknown-service"))
     status = data.get("status", "success").lower()
@@ -112,12 +114,14 @@ async def receive_deploy(request: Request):
 
 @app.get("/status")
 async def status_endpoint():
+    """Retrieve full Volcano fleet status JSON, container health, Prometheus resource gauges, and recent deploy history."""
     return await get_system_status()
 
 
 @app.post("/report")
 @app.get("/report")
 async def trigger_report():
+    """Trigger on-demand generation and Telegram broadcast of the daily 24h health and performance report."""
     report_text = await generate_daily_report()
     await send_telegram(report_text, channel="reports")
     return {"ok": True, "report": report_text}
@@ -128,6 +132,7 @@ async def telegram_webhook(
     request: Request,
     x_telegram_bot_api_secret_token: str | None = Header(default=None),
 ):
+    """Receive incoming Telegram updates via Webhook mode (authenticated with secret token header)."""
     secret = os.environ.get("TELEGRAM_SECRET_TOKEN", "").strip()
     if secret and x_telegram_bot_api_secret_token != secret:
         log.warning("Invalid Telegram webhook secret token")
@@ -140,5 +145,6 @@ async def telegram_webhook(
 
 @app.get("/health")
 async def health():
+    """Liveness probe endpoint returning 200 OK for Docker and external uptime checks."""
     return {"ok": True}
 

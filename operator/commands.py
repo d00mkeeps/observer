@@ -270,6 +270,53 @@ async def handle_errors_command(args: list[str]) -> str:
     return "\n".join(lines)
 
 
+def handle_docs_command(args: list[str]) -> str:
+    """Handle deterministic `docs` command and subflags."""
+    sub = args[0].lower() if args else ""
+
+    if sub in ("api", "endpoint", "endpoints", "routes"):
+        return (
+            "📘 <b>Observer Operator API Reference</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "• <code>POST /alert</code> — Receive Prometheus Alertmanager alerts & trigger AI diagnosis\n"
+            "• <code>POST /deploy</code> — Log CI/CD deploy events & notify Telegram\n"
+            "• <code>GET /status</code> — Volcano fleet JSON status & container health\n"
+            "• <code>GET/POST /report</code> — Generate and broadcast daily 24h health report\n"
+            "• <code>POST /telegram/webhook</code> — Telegram webhook receiver\n"
+            "• <code>GET /health</code> — Liveness probe (200 OK)\n\n"
+            "🔗 <i>Full docs: <a href=\"https://github.com/d00mkeeps/observer/blob/main/docs/API.md\">docs/API.md</a></i>"
+        )
+
+    if sub in ("arch", "architecture", "topology", "mesh"):
+        return (
+            "🏗️ <b>Observer Architecture & Isolation</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "<b>Security Boundaries:</b>\n"
+            "• <code>/home/miles/prod</code> — Mounted <b>strictly read-only (:ro)</b>\n"
+            "• <code>/home/miles/dev</code> — Isolated sandbox for prototyping fixes\n"
+            "• <b>No-Test, No-Push</b> — Automated tests must pass 100% before patch approval\n\n"
+            "<b>Containers & Ports:</b>\n"
+            "• <code>obs-operator</code> (FastAPI + Agent): <code>127.0.0.1:8006</code>\n"
+            "• <code>obs-prometheus</code> (TSDB Metrics): <code>127.0.0.1:9090</code>\n"
+            "• <code>obs-loki</code> (Log Aggregator): <code>127.0.0.1:3100</code>\n"
+            "• <code>obs-grafana</code> (Dashboard UI): <code>127.0.0.1:3000</code>\n\n"
+            "🔗 <i>Full diagram: <a href=\"https://github.com/d00mkeeps/observer/blob/main/docs/ARCHITECTURE.md\">docs/ARCHITECTURE.md</a></i>"
+        )
+
+    if sub in ("commands", "cli", "bot"):
+        return handle_help_command()
+
+    return (
+        "📚 <b>Living Documentation Index</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "Auto-generated on every push to GitHub:\n\n"
+        "• <code>docs api</code> — Registered FastAPI endpoints & parameters\n"
+        "• <code>docs arch</code> — Container topology, ports & security boundaries\n"
+        "• <code>docs commands</code> — Bot commands & AI agent guide\n\n"
+        "🔗 <i>GitHub Repo: <a href=\"https://github.com/d00mkeeps/observer\">d00mkeeps/observer</a></i>"
+    )
+
+
 def handle_help_command() -> str:
     """Return deterministic cheat sheet and command guide."""
     return (
@@ -283,6 +330,7 @@ def handle_help_command() -> str:
         "• <code>patches</code> — List code patches waiting for your approval\n"
         "• <code>/approve &lt;id&gt;</code> — Commit verified fix, push to GitHub & deploy\n"
         "• <code>/reject &lt;id&gt;</code> — Discard pending sandbox patch\n"
+        "• <code>docs [api|arch|commands]</code> — View living documentation on demand\n"
         "• <code>help</code> — Show this cheat sheet\n\n"
         "<b>🧠 Conversational AI Assistant:</b>\n"
         "Ask anything in natural language! For example:\n"
@@ -316,6 +364,9 @@ async def execute_deterministic_command(text: str) -> str | None:
 
     if cmd in ("health", "host"):
         return await handle_status_command(["host"])
+
+    if cmd in ("docs", "doc"):
+        return handle_docs_command(args)
 
     if cmd in ("help", "commands", "start", "?"):
         return handle_help_command()
