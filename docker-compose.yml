@@ -12,7 +12,7 @@ services:
       - ${CODEBASES_PATH:-/home/miles/prod}:/codebases:ro
       - ${DEV_WORKSPACE_PATH:-/home/miles/dev}:/workspace/dev
       - ${SSH_AUTH_DIR:-/home/miles/.ssh}:/root/.ssh:ro
-      - ${SKILLS_PATH:-/home/miles/skills}:/skills:ro
+      - ${SKILLS_PATH:-/home/miles/skills}:/skills
     networks:
       - obs
     deploy:

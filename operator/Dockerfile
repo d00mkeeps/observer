@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN git config --global user.name "Volcano Observer Agent" && \
     git config --global user.email "observer@volcano.local" && \
     git config --global url."git@github.com:".insteadOf "https://github.com/" && \
+    git config --global --add safe.directory '*' && \
     mkdir -p -m 0700 /root/.ssh && \
     ssh-keyscan github.com >> /root/.ssh/known_hosts 2>/dev/null || true
 
