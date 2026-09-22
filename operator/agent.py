@@ -101,7 +101,17 @@ CRITICAL BEHAVIOR RULES:
    - 🟢 Tier 1 (Trivial Patch): 1-5 line fix (e.g. null check, default fallback, env var, typo).
    - 🟡 Tier 2 (Moderate Logic): Localized function fix, edge-case logic change.
    - 🔴 Tier 3 (Architectural Refactor): Schema migrations, queue architecture, breaking API change. Explicitly note that a workstation session is required.
+6. MARKET & COMPETITIVE RESEARCH:
+   - When asked to conduct market research or analyze competitors (/research), use `search_web` to query the live web.
+   - Structure output into 4 clear sections:
+     a. 📊 Market Landscape & Top Competitors (pricing, tech stack, key features).
+     b. 💡 User Pain Points & Market Gaps (what users complain about / what competitors miss).
+     c. 🛠️ Best-in-Class API & Architecture Patterns.
+     d. 🎯 Recommended Strategy for Volcano.
 """
+
+
+from tools_research import search_web
 
 
 def _get_agent_tools():
@@ -115,6 +125,7 @@ def _get_agent_tools():
         get_error_frequency,
         get_recent_logs,
         get_system_health,
+        search_web,
         prepare_dev_workspace,
         write_dev_file,
         run_dev_tests,

@@ -8,6 +8,7 @@ from agent import process_telegram_message
 from patch_manager import apply_and_push_patch, reject_patch, get_pending_patches
 from commands import execute_deterministic_command
 from skills import get_skill_for_command, sync_skills_repo
+from updater import execute_service_update
 
 log = logging.getLogger("operator.telegram")
 
@@ -127,20 +128,29 @@ async def handle_telegram_update(update: dict) -> dict:
         await send_telegram_reply(chat_id=chat_id, text=reply_msg, reply_to_message_id=message_id)
         return {"ok": True, "status": "listed_patches"}
 
-    # 4. Deterministic Commands Interceptor: status, errors, health, help (with subflags, no LLM)
+    # 4. Direct Command Interceptor: update / /update
+    if first_word_clean in ("update", "restart"):
+        parts = clean_text.split(maxsplit=1)
+        service = parts[1].strip() if len(parts) > 1 else "observer"
+        await send_chat_action(chat_id=chat_id, action="typing")
+        success, reply_msg = execute_service_update(service)
+        await send_telegram_reply(chat_id=chat_id, text=reply_msg, reply_to_message_id=message_id)
+        return {"ok": True, "status": "updating" if success else "update_failed"}
+
+    # 5. Deterministic Commands Interceptor: status, errors, health, help (with subflags, no LLM)
     deterministic_reply = await execute_deterministic_command(clean_text)
     if deterministic_reply is not None:
         log.info("Handled deterministic command '%s' (0 LLM tokens used)", clean_text)
         await send_telegram_reply(chat_id=chat_id, text=deterministic_reply, reply_to_message_id=message_id)
         return {"ok": True, "status": "deterministic_command"}
 
-    # 5. Phase Engineering Skills Interceptor: ideate, spec, plan, build, review, ship (Addy Osmani framework)
+    # 6. Phase Engineering & Research Skills Interceptor: research, ideate, spec, plan, build, review, ship
     active_skill = None
-    if first_word_clean in ("ideate", "spec", "plan", "build", "review", "ship"):
+    if first_word_clean in ("research", "market", "ideate", "spec", "plan", "build", "review", "ship"):
         active_skill = get_skill_for_command(first_word_clean)
         log.info("Activated engineering skill '%s' for command '%s'", active_skill.get("name") if active_skill else "fallback", first_word_clean)
 
-    # 6. Route to Antigravity Agent for conversational reasoning & tool execution (with active skill if set)
+    # 7. Route to Antigravity Agent for conversational reasoning & tool execution (with active skill if set)
     await send_chat_action(chat_id=chat_id, action="typing")
 
     agent_reply = await process_telegram_message(
@@ -164,13 +174,15 @@ async def register_bot_commands():
     if not token:
         return
     commands = [
-        {"command": "ideate", "description": "Brainstorm & architecture trade-offs"},
+        {"command": "status", "description": "Fleet health & Volcano resource gauges"},
+        {"command": "research", "description": "Live web market research & competitor teardown"},
+        {"command": "ideate", "description": "Architecture options & trade-off analysis"},
         {"command": "spec", "description": "Draft PRD, API contract & requirements"},
         {"command": "plan", "description": "Atomic task breakdown & verification gates"},
-        {"command": "build", "description": "TDD sandbox build (Red -> Green)"},
+        {"command": "build", "description": "TDD sandbox build (Red -> Green in dev)"},
         {"command": "review", "description": "Security, quality & edge-case audit"},
         {"command": "ship", "description": "Deploy patch & release summary"},
-        {"command": "status", "description": "Fleet & host resource overview"},
+        {"command": "update", "description": "Self-update Observer or rebuild a service"},
         {"command": "errors", "description": "Loki error audit across all apps"},
         {"command": "docs", "description": "Living API & architecture documentation"},
         {"command": "patches", "description": "Pending sandbox patches awaiting approval"},
