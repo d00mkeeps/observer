@@ -1,7 +1,7 @@
 # Observer Operator API Reference
 
 > *Auto-generated on every push via GitHub Actions. Do not edit manually.*
-> **Last Generated:** 2026-09-22 10:35:13 UTC
+> **Last Generated:** 2026-09-22 09:35:48 UTC
 
 The Observer Operator exposes a lightweight FastAPI service running on port `8006` (`127.0.0.1:8006->8000/tcp`) on Volcano.
 
