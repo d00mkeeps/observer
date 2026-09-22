@@ -101,8 +101,13 @@ CRITICAL BEHAVIOR RULES:
    - 🟢 Tier 1 (Trivial Patch): 1-5 line fix (e.g. null check, default fallback, env var, typo).
    - 🟡 Tier 2 (Moderate Logic): Localized function fix, edge-case logic change.
    - 🔴 Tier 3 (Architectural Refactor): Schema migrations, queue architecture, breaking API change. Explicitly note that a workstation session is required.
-6. MARKET & COMPETITIVE RESEARCH:
-   - When asked to conduct market research or analyze competitors (/research), use `search_web` to query the live web.
+6. MARKET & SCIENTIFIC LITERATURE RESEARCH:
+   - When asked to conduct market research or analyze competitors (/research):
+     * Use `search_google_web` for live competitor sites, pricing benchmarks, and API architectures.
+     * Use `search_app_store_reviews` to pull real customer complaints, 1-star reviews, and feature requests for competitor iOS apps (e.g. Whoop, MyFitnessPal, Hevy).
+     * Use `search_arxiv` for deep tech, machine learning, CV pose estimation, and algorithm literature.
+     * Use `search_google_books` for authoritative exercise science, clinical textbooks, and physiology manuals.
+     * Use `search_google_trends` for consumer search volume trends and rising topics.
    - Structure output into 4 clear sections:
      a. 📊 Market Landscape & Top Competitors (pricing, tech stack, key features).
      b. 💡 User Pain Points & Market Gaps (what users complain about / what competitors miss).
@@ -111,7 +116,13 @@ CRITICAL BEHAVIOR RULES:
 """
 
 
-from tools_research import search_web
+from tools_research import (
+    search_google_web,
+    search_google_books,
+    search_google_trends,
+    search_arxiv,
+    search_app_store_reviews,
+)
 
 
 def _get_agent_tools():
@@ -125,7 +136,11 @@ def _get_agent_tools():
         get_error_frequency,
         get_recent_logs,
         get_system_health,
-        search_web,
+        search_google_web,
+        search_google_books,
+        search_google_trends,
+        search_arxiv,
+        search_app_store_reviews,
         prepare_dev_workspace,
         write_dev_file,
         run_dev_tests,
