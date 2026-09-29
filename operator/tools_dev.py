@@ -17,8 +17,9 @@ def prepare_dev_workspace(project: str) -> str:
     """Prepare or synchronize an isolated development workspace for a project under /workspace/dev/<project>.
 
     Args:
-        project: Project name (e.g. 'volc', 'clear-box', 'horizon', 'observer').
+        project: Project name (e.g. 'volc', 'clear-box', 'horizon', 'observer', 'portfolio', 'sturdy-robot').
     """
+    from git_sync_guard import inspect_repository, get_rogue_diff_summary
     prod_dir = resolve_project_path(project)
     if not prod_dir:
         return f"Error: Cannot find production repository for '{project}'."
@@ -30,21 +31,32 @@ def prepare_dev_workspace(project: str) -> str:
         # If dev dir doesn't exist, clone from prod or GitHub
         if not os.path.isdir(dev_dir):
             log.info("Initializing dev workspace for %s at %s from %s", project, dev_dir, prod_dir)
-            # Use git clone from the local prod directory to create a fast, isolated clone
             res = subprocess.run(["git", "clone", prod_dir, dev_dir], capture_output=True, text=True, timeout=30)
             if res.returncode != 0:
                 return f"Failed cloning into dev workspace: {res.stderr}"
             
-            # Set remote URL to match production's origin URL
             remote_res = subprocess.run(["git", "config", "--get", "remote.origin.url"], cwd=prod_dir, capture_output=True, text=True)
             if remote_res.returncode == 0 and remote_res.stdout.strip():
                 origin_url = remote_res.stdout.strip()
                 subprocess.run(["git", "remote", "set-url", "origin", origin_url], cwd=dev_dir)
         else:
-            # Sync with latest prod branch
-            subprocess.run(["git", "fetch", prod_dir, "main:main"], cwd=dev_dir, capture_output=True)
+            # Check for rogue / uncommitted changes
+            status = inspect_repository(project, dev_root=DEV_WORKSPACE_PATH, prod_root="/codebases", fetch_remote=True)
+            if not status["dev_clean"]:
+                summary = status["rogue_summary"]
+                return (
+                    f"⚠️ WARNING: Dev workspace for '{project}' already contains uncommitted rogue changes:\n\n"
+                    f"{summary}\n\n"
+                    f"Production code is untouched. Review or discard these rogue changes before starting a new task."
+                )
 
-        return f"Dev workspace for '{project}' is ready at {dev_dir}. Production code is untouched."
+            # Fast-forward dev to latest origin/main
+            subprocess.run(["git", "fetch", "origin", "main"], cwd=dev_dir, capture_output=True, text=True, timeout=15)
+            ff_res = subprocess.run(["git", "merge", "--ff-only", "origin/main"], cwd=dev_dir, capture_output=True, text=True, timeout=15)
+            if ff_res.returncode != 0 and status.get("ahead_count", 0) > 0:
+                return f"Dev workspace has {status['ahead_count']} unpushed commits ahead of origin/main."
+
+        return f"Dev workspace for '{project}' is ready and synchronized with origin/main at {dev_dir}. Production code is untouched."
     except Exception as e:
         return f"Error preparing dev workspace for '{project}': {str(e)}"
 
@@ -153,6 +165,16 @@ def propose_patch(project: str, commit_message: str) -> str:
         return (
             f"🛑 CANNOT PROPOSE PATCH: Tests have not passed in dev workspace!\n"
             f"Rule: All fixes must be verified by running 'run_dev_tests' before proposing a push."
+        )
+
+    # 2. Version Control Integrity Gate: Stale Base Check
+    from git_sync_guard import inspect_repository
+    status = inspect_repository(project, dev_root=DEV_WORKSPACE_PATH, prod_root="/codebases", fetch_remote=True)
+    if status.get("behind_count", 0) > 0:
+        return (
+            f"🛑 CANNOT PROPOSE PATCH: Dev workspace is built on a STALE BASE!\n"
+            f"Dev is {status['behind_count']} commit(s) behind origin/main.\n"
+            f"Rule: Stale bases must be rebased/merged with origin/main before proposing a patch to prevent merge conflicts or overwriting production code."
         )
 
     # 2. Get git diff

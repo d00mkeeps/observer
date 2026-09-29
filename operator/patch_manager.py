@@ -63,6 +63,12 @@ def apply_and_push_patch(patch_id: str = "") -> tuple[bool, str]:
         return False, f"Dev workspace directory not found at {dev_dir}."
 
     try:
+        # Pre-push Integrity Guard: ensure dev is not behind origin
+        from git_sync_guard import inspect_repository
+        status = inspect_repository(project, dev_root=DEV_WORKSPACE_PATH, prod_root="/codebases", fetch_remote=True)
+        if status.get("behind_count", 0) > 0:
+            return False, f"🛑 Push blocked: Dev workspace for '{project}' is {status['behind_count']} commits behind origin/main. Rebase on latest origin before pushing."
+
         # 1. Stage all changes
         add_res = subprocess.run(["git", "add", "-A"], cwd=dev_dir, capture_output=True, text=True, timeout=15)
         if add_res.returncode != 0:
