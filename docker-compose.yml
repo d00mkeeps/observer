@@ -13,6 +13,7 @@ services:
       - ${DEV_WORKSPACE_PATH:-/home/miles/dev}:/workspace/dev
       - ${SSH_AUTH_DIR:-/home/miles/.ssh}:/root/.ssh:ro
       - ${SKILLS_PATH:-/home/miles/skills}:/skills
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - obs
     deploy:

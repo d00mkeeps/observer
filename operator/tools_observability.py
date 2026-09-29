@@ -2,6 +2,9 @@ import os
 import time
 import re
 import json
+import socket
+import http.client
+import shutil
 import urllib.parse
 import urllib.request
 import logging
@@ -271,32 +274,93 @@ def get_recent_logs(container: str, minutes: int = 15, limit: int = 25) -> str:
         return f"Error fetching recent logs from Loki: {str(e)}"
 
 
-def get_system_health() -> str:
-    """Check Prometheus metrics for CPU, RAM, Disk, and container uptime across Volcano."""
+class UnixSocketHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, path: str):
+        super().__init__("localhost")
+        self.path = path
+
+    def connect(self):
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.connect(self.path)
+
+
+def _get_docker_containers() -> list[dict]:
+    sock_path = "/var/run/docker.sock"
+    if not os.path.exists(sock_path):
+        return []
     try:
-        ram_total = _prom_sync("node_memory_MemTotal_bytes")
-        ram_avail = _prom_sync("node_memory_MemAvailable_bytes")
-        disk_total = _prom_sync('node_filesystem_size_bytes{mountpoint="/"}')
-        disk_avail = _prom_sync('node_filesystem_avail_bytes{mountpoint="/"}')
-        load1 = _prom_sync("node_load1")
-        uptime = _prom_sync("time() - node_boot_time_seconds")
-        running_containers = _prom_sync('time() - container_last_seen{name=~".+"} < 60')
+        conn = UnixSocketHTTPConnection(sock_path)
+        conn.request("GET", "/containers/json")
+        res = conn.getresponse()
+        if res.status == 200:
+            return json.loads(res.read().decode("utf-8", errors="ignore"))
+    except Exception as e:
+        log.warning("Failed to query Docker socket: %s", e)
+    return []
 
-        ram_pct = 0
-        if ram_total and ram_avail:
-            t = float(ram_total[0]["value"][1])
-            a = float(ram_avail[0]["value"][1])
-            ram_pct = round((t - a) / t * 100)
 
-        disk_pct = 0
-        if disk_total and disk_avail:
-            t = float(disk_total[0]["value"][1])
-            a = float(disk_avail[0]["value"][1])
-            disk_pct = round((t - a) / t * 100)
+def _get_host_stats() -> tuple[float, float, int, int]:
+    load = 0.0
+    try:
+        with open("/proc/loadavg", "r") as f:
+            load = float(f.read().split()[0])
+    except Exception:
+        pass
 
-        load = float(load1[0]["value"][1]) if load1 else 0.0
-        uptime_days = round(float(uptime[0]["value"][1]) / 86400, 1) if uptime else 0.0
-        container_count = len(running_containers)
+    uptime_days = 0.0
+    try:
+        with open("/proc/uptime", "r") as f:
+            uptime_days = round(float(f.read().split()[0]) / 86400, 1)
+    except Exception:
+        pass
+
+    ram_pct = 0
+    try:
+        mem = {}
+        with open("/proc/meminfo", "r") as f:
+            for line in f:
+                parts = line.split(":")
+                if len(parts) == 2:
+                    key = parts[0].strip()
+                    val = parts[1].strip().split()[0]
+                    mem[key] = float(val)
+        if "MemTotal" in mem and "MemAvailable" in mem and mem["MemTotal"] > 0:
+            ram_pct = round((mem["MemTotal"] - mem["MemAvailable"]) / mem["MemTotal"] * 100)
+    except Exception:
+        pass
+
+    disk_pct = 0
+    try:
+        total, used, _ = shutil.disk_usage("/")
+        if total > 0:
+            disk_pct = round(used / total * 100)
+    except Exception:
+        pass
+
+    return load, uptime_days, ram_pct, disk_pct
+
+
+def get_system_health() -> str:
+    """Check live metrics for CPU, RAM, Disk, uptime, and running Docker containers across Volcano."""
+    try:
+        load, uptime_days, ram_pct, disk_pct = _get_host_stats()
+        docker_containers = _get_docker_containers()
+
+        if docker_containers:
+            container_names = []
+            for c in docker_containers:
+                raw_names = c.get("Names", [])
+                name = raw_names[0].lstrip("/") if raw_names else "unknown"
+                container_names.append(name)
+            container_count = len(docker_containers)
+            containers_summary = f"{container_count} active ({', '.join(sorted(container_names)[:6])}{'...' if len(container_names) > 6 else ''})"
+        else:
+            prom_containers = _prom_sync('time() - container_last_seen{name=~".+"} < 60')
+            if prom_containers:
+                container_count = len(prom_containers)
+                containers_summary = f"{container_count} active (via Prometheus)"
+            else:
+                containers_summary = "Telemetry daemon unreachable (check host via SSH)"
 
         return (
             f"🖥️ <b>Host Health Overview:</b>\n"
@@ -305,7 +369,7 @@ def get_system_health() -> str:
             f"- <b>RAM Usage:</b> {ram_pct}%\n"
             f"- <b>Disk Usage:</b> {disk_pct}%\n"
             f"- <b>Uptime:</b> {uptime_days} days\n"
-            f"- <b>Running Containers:</b> {container_count}"
+            f"- <b>Running Containers:</b> {containers_summary}"
         )
     except Exception as e:
-        return f"Error querying Prometheus system health: {str(e)}"
+        return f"Error retrieving system health: {str(e)}"
