@@ -1,7 +1,7 @@
 # Observer Operator API Reference
 
 > *Auto-generated on every push via GitHub Actions. Do not edit manually.*
-> **Last Generated:** 2026-09-27 16:57:06 UTC
+> **Last Generated:** 2026-09-29 11:13:08 UTC
 
 The Observer Operator exposes a lightweight FastAPI service running on port `8006` (`127.0.0.1:8006->8000/tcp`) on Volcano.
 
@@ -10,6 +10,7 @@ The Observer Operator exposes a lightweight FastAPI service running on port `800
 | Method | Endpoint | Handler | Description |
 | :--- | :--- | :--- | :--- |
 | `POST` | [`/alert`](#alert-post) | `receive_alert()` | Receive and diagnose Prometheus Alertmanager alerts, translating them into 5-point incident cards and dispatching to Telegram. |
+| `POST` | [`/chat`](#chat-post) | `chat_endpoint()` | Conversational endpoint for CLI and TUI queries. |
 | `POST` | [`/ci/failure`](#cifailure-post) | `receive_ci_failure()` | Receive GitHub Actions workflow/CI failures, log directly to Loki, and dispatch incident alert. |
 | `GET` | [`/costs`](#costs-get) | `get_costs_endpoint()` | Retrieve Volcano ecosystem cost breakdown by app and service. |
 | `POST` | [`/deploy`](#deploy-post) | `receive_deploy()` | Receive deployment notifications from GitHub Actions workflows, update portfolio state, and post summary to Telegram. |
@@ -24,7 +25,7 @@ The Observer Operator exposes a lightweight FastAPI service running on port `800
 ## Endpoint Details
 
 ### `POST /alert`
-**Function:** `receive_alert()` (Line 74)  
+**Function:** `receive_alert()` (Line 75)  
 **Description:** Receive and diagnose Prometheus Alertmanager alerts, translating them into 5-point incident cards and dispatching to Telegram.  
 
 ```bash
@@ -33,8 +34,18 @@ curl -s -X POST http://127.0.0.1:8006/alert \
   -d '{"alerts": [{"status": "firing", "labels": {"name": "supreme-octo-doodle-api"}}]}'
 ```
 
+### `POST /chat`
+**Function:** `chat_endpoint()` (Line 212)  
+**Description:** Conversational endpoint for CLI and TUI queries.  
+
+```bash
+curl -s -X POST http://127.0.0.1:8006/chat \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
 ### `POST /ci/failure`
-**Function:** `receive_ci_failure()` (Line 119)  
+**Function:** `receive_ci_failure()` (Line 120)  
 **Description:** Receive GitHub Actions workflow/CI failures, log directly to Loki, and dispatch incident alert.  
 
 ```bash
@@ -44,7 +55,7 @@ curl -s -X POST http://127.0.0.1:8006/ci/failure \
 ```
 
 ### `GET /costs`
-**Function:** `get_costs_endpoint()` (Line 174)  
+**Function:** `get_costs_endpoint()` (Line 175)  
 **Description:** Retrieve Volcano ecosystem cost breakdown by app and service.  
 **Parameters:** `app, timeframe`  
 
@@ -53,7 +64,7 @@ curl -s http://127.0.0.1:8006/costs
 ```
 
 ### `POST /deploy`
-**Function:** `receive_deploy()` (Line 90)  
+**Function:** `receive_deploy()` (Line 91)  
 **Description:** Receive deployment notifications from GitHub Actions workflows, update portfolio state, and post summary to Telegram.  
 
 ```bash
@@ -63,7 +74,7 @@ curl -s -X POST http://127.0.0.1:8006/deploy \
 ```
 
 ### `GET /health`
-**Function:** `health()` (Line 211)  
+**Function:** `health()` (Line 228)  
 **Description:** Liveness probe endpoint returning 200 OK for Docker and external uptime checks.  
 
 ```bash
@@ -71,7 +82,7 @@ curl -s http://127.0.0.1:8006/health
 ```
 
 ### `GET /report`
-**Function:** `trigger_report()` (Line 187)  
+**Function:** `trigger_report()` (Line 188)  
 **Description:** Trigger on-demand generation and Telegram broadcast of the daily 24h health and performance report.  
 
 ```bash
@@ -79,7 +90,7 @@ curl -s http://127.0.0.1:8006/report
 ```
 
 ### `POST /report`
-**Function:** `trigger_report()` (Line 187)  
+**Function:** `trigger_report()` (Line 188)  
 **Description:** Trigger on-demand generation and Telegram broadcast of the daily 24h health and performance report.  
 
 ```bash
@@ -89,7 +100,7 @@ curl -s -X POST http://127.0.0.1:8006/report \
 ```
 
 ### `GET /status`
-**Function:** `status_endpoint()` (Line 180)  
+**Function:** `status_endpoint()` (Line 181)  
 **Description:** Retrieve full Volcano fleet status JSON, container health, Prometheus resource gauges, and recent deploy history.  
 
 ```bash
@@ -97,7 +108,7 @@ curl -s http://127.0.0.1:8006/status
 ```
 
 ### `POST /telegram/webhook`
-**Function:** `telegram_webhook()` (Line 195)  
+**Function:** `telegram_webhook()` (Line 196)  
 **Description:** Receive incoming Telegram updates via Webhook mode (authenticated with secret token header).  
 **Parameters:** `x_telegram_bot_api_secret_token`  
 
