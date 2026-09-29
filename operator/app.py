@@ -15,6 +15,7 @@ from portfolio import get_system_status, record_deploy_event
 from tools_observability import push_loki_log
 from cost_tracker import cost_tracker
 from telegram_handler import handle_telegram_update, run_telegram_poller
+from agent import process_telegram_message
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 log = logging.getLogger("operator")
@@ -205,6 +206,22 @@ async def telegram_webhook(
     payload = await request.json()
     result = await handle_telegram_update(payload)
     return result
+
+
+@app.post("/chat")
+async def chat_endpoint(request: Request):
+    """Conversational endpoint for CLI and TUI queries."""
+    data = await request.json()
+    prompt = data.get("prompt", "").strip()
+    user_name = data.get("user", "Miles")
+    if not prompt:
+        return {"error": "Missing prompt"}
+    reply = await process_telegram_message(
+        chat_id="cli-operator",
+        user_text=prompt,
+        user_name=user_name,
+    )
+    return {"reply": reply}
 
 
 @app.get("/health")
