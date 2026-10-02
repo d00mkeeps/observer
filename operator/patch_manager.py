@@ -76,7 +76,7 @@ def apply_and_push_patch(patch_id: str = "") -> tuple[bool, str]:
 
         # 2. Commit
         commit_res = subprocess.run(
-            ["git", "commit", "-m", f"{commit_msg}\n\n[verified-by: Volcano Observer AI Agent]"],
+            ["git", "commit", "-m", f"{commit_msg}\n\n[verified-by: Cano Observer AI Agent]"],
             cwd=dev_dir,
             capture_output=True,
             text=True,
@@ -105,7 +105,7 @@ def apply_and_push_patch(patch_id: str = "") -> tuple[bool, str]:
             f"• <b>Project:</b> <code>{project}</code>\n"
             f"• <b>Branch:</b> <code>{branch}</code>\n"
             f"• <b>Message:</b> {commit_msg}\n\n"
-            f"<i>GitHub Actions CI/CD has been triggered to deploy the updated containers to Volcano.</i>"
+            f"<i>GitHub Actions CI/CD has been triggered to deploy the updated containers to Cano.</i>"
         )
     except Exception as e:
         log.error("Exception applying patch %s: %s", p_id, e)

@@ -1,7 +1,7 @@
 """Service & Observer Self-Update Engine.
 
 Allows Observer to safely pull the latest verified commits from GitHub `main`
-and rebuild/restart itself or any service on Volcano from Telegram.
+and rebuild/restart itself or any service on Cano from Telegram.
 """
 
 import os
@@ -44,7 +44,7 @@ def execute_service_update(service_name: str = "observer") -> tuple[bool, str]:
     proj_dir = _resolve_project_dir(target)
 
     if not proj_dir:
-        return False, f"❌ Cannot find project directory for service '{service_name}' on Volcano."
+        return False, f"❌ Cannot find project directory for service '{service_name}' on Cano."
 
     log.info("Executing update for service '%s' in %s...", target, proj_dir)
 

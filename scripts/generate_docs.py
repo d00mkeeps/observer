@@ -67,7 +67,7 @@ def generate_api_markdown(routes: list[dict]) -> str:
         "> *Auto-generated on every push via GitHub Actions. Do not edit manually.*",
         f"> **Last Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}",
         "",
-        "The Observer Operator exposes a lightweight FastAPI service running on port `8006` (`127.0.0.1:8006->8000/tcp`) on Volcano.",
+        "The Observer Operator exposes a lightweight FastAPI service running on port `8006` (`127.0.0.1:8006->8000/tcp`) on Cano.",
         "",
         "## Endpoints Summary",
         "",
@@ -157,11 +157,11 @@ def generate_architecture_markdown(compose_path: Path) -> str:
 > *Auto-generated on every push via GitHub Actions. Do not edit manually.*  
 > **Last Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}
 
-Observer operates as the autonomous Site Reliability Engineering (SRE) and deployment orchestration engine for all applications running on the **Volcano** server.
+Observer operates as the autonomous Site Reliability Engineering (SRE) and deployment orchestration engine for all applications running on the **Cano** server.
 
 ```mermaid
 graph TD
-    subgraph Volcano_Host["Volcano Server (Ubuntu / Docker)"]
+    subgraph Cano_Host["Cano Server (Ubuntu / Docker)"]
         subgraph Code_Spaces["File System Storage"]
             PROD["/home/miles/prod (11 Repos, :ro)"]
             DEV["/home/miles/dev (Isolated Sandbox, :rw)"]
@@ -246,7 +246,7 @@ These commands execute deterministically against Prometheus, Loki, and local sta
 | `status` | *(none)* | High-level fleet overview: host RAM/Disk/Load, 8 project statuses, 24h error count, pending patches. | `status` |
 | `status <project>` | `volc`, `clearbox`, `horizon`, `observer`, `portfolio`, `qa`, etc. | Deep-dive status for a specific project: container states, last deploy timestamp, and 24h Loki error tally. | `status volc` |
 | `status -v` | `-v`, `--verbose`, `-a`, `--all` | Verbose mode: lists every single container and individual error count. | `status -v` |
-| `status host` | `host`, `-h`, `--host`, `health` | Volcano host hardware metrics (RAM GB, Disk GB, 1m load, uptime in days, active container list). | `health` |
+| `status host` | `host`, `-h`, `--host`, `health` | Cano host hardware metrics (RAM GB, Disk GB, 1m load, uptime in days, active container list). | `health` |
 | `errors` | `[1h\\|6h\\|24h\\|7d]` | Direct Loki error audit across all apps over custom lookback duration (default `24h`). | `errors 1h` |
 | `patches` | *(none)* | Lists all sandbox bugfix patches currently awaiting your approval. | `patches` |
 | `approve <id>` | `<patch_id>` | Commits the verified sandbox patch, pushes to GitHub via SSH, and triggers GitHub Actions deployment. | `/approve patch-volc-8821` |
@@ -278,7 +278,7 @@ def update_root_readme(routes: list[dict]):
 [![Loki](https://img.shields.io/badge/Loki-LogQL-F47C00.svg?logo=grafana&logoColor=white)](https://grafana.com/oss/loki/)
 [![Telegram](https://img.shields.io/badge/Telegram-@Airwavbot-26A5E4.svg?logo=telegram&logoColor=white)](https://t.me/Airwavbot)
 
-Autonomous Site Reliability Engineering (SRE), real-time log monitoring, incident response, and deployment orchestration for all services running on **Volcano**.
+Autonomous Site Reliability Engineering (SRE), real-time log monitoring, incident response, and deployment orchestration for all services running on **Cano**.
 
 ---
 
@@ -290,7 +290,7 @@ Autonomous Site Reliability Engineering (SRE), real-time log monitoring, inciden
 * 📘 **[API Reference](docs/API.md)**: Interactive route catalog ({len(routes)} registered FastAPI endpoints).
 * 🏗️ **[Architecture & Topology](docs/ARCHITECTURE.md)**: Interactive Mermaid service mesh, isolation boundaries, and container specs.
 * ⚡ **[Command Reference](docs/COMMANDS.md)**: Deterministic `@Airwavbot` commands, subflags, and conversational AI features.
-* 🛠️ **[Rollout Guide](docs/TEMPLATES/AUTO_DOCS_GUIDE.md)**: Standard template for rolling auto-docs out to other Volcano repositories.
+* 🛠️ **[Rollout Guide](docs/TEMPLATES/AUTO_DOCS_GUIDE.md)**: Standard template for rolling auto-docs out to other Cano repositories.
 <!-- AUTO-DOCS-END -->
 
 ---

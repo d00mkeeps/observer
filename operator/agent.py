@@ -80,7 +80,7 @@ def get_genai_client() -> genai.Client | None:
     return None
 
 
-SYSTEM_INSTRUCTION = """You are Volcano Observer, an autonomous SRE and Codebase Intelligence assistant for the production host 'volcano'.
+SYSTEM_INSTRUCTION = """You are Cano Observer, an autonomous SRE and Codebase Intelligence assistant for the production host 'cano'.
 Your role is to be a clear, human-friendly translator between raw server infrastructure/code and the engineer on their phone.
 
 CRITICAL BEHAVIOR RULES:
@@ -112,7 +112,7 @@ CRITICAL BEHAVIOR RULES:
      a. 📊 Market Landscape & Top Competitors (pricing, tech stack, key features).
      b. 💡 User Pain Points & Market Gaps (what users complain about / what competitors miss).
      c. 🛠️ Best-in-Class API & Architecture Patterns.
-     d. 🎯 Recommended Strategy for Volcano.
+     d. 🎯 Recommended Strategy for Cano.
 """
 
 
@@ -128,7 +128,7 @@ from cost_tracker import cost_tracker
 
 
 def get_cost_breakdown(app: str = "", timeframe: str = "month") -> str:
-    """Check current Month-to-Date and daily infrastructure, LLM token, and API costs across Volcano.
+    """Check current Month-to-Date and daily infrastructure, LLM token, and API costs across Cano.
 
     Args:
         app: Optional specific app name to filter by (e.g. 'volc', 'clearbox', 'observer', 'horizon').
@@ -262,8 +262,8 @@ async def process_telegram_message(
     client = get_genai_client()
     if not client:
         return (
-            f"🤖 <b>Volcano Operator</b>\n"
-            f"Hello {html.escape(user_name)}! 2-way communication is active, but Gemini credentials are not yet configured in <code>.env</code> on Volcano.\n\n"
+            f"🤖 <b>Cano Operator</b>\n"
+            f"Hello {html.escape(user_name)}! 2-way communication is active, but Gemini credentials are not yet configured in <code>.env</code> on Cano.\n\n"
             f"Please configure <code>GEMINI_API_KEY</code> or <code>GOOGLE_APPLICATION_CREDENTIALS_JSON</code>."
         )
 

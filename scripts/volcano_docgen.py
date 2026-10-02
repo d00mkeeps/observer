@@ -225,11 +225,11 @@ class VolcanoDocGen:
 
 ```mermaid
 graph TD
-    subgraph Volcano_Host["Volcano Server (Docker Mesh)"]
+    subgraph Cano_Host["Cano Server (Docker Mesh)"]
 {nodes_text}
     end
 
-    External[Client / Ingress] --> Volcano_Host
+    External[Client / Ingress] --> Cano_Host
 ```
 
 ---

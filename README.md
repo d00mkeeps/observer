@@ -7,7 +7,7 @@
 [![Loki](https://img.shields.io/badge/Loki-LogQL-F47C00.svg?logo=grafana&logoColor=white)](https://grafana.com/oss/loki/)
 [![Telegram](https://img.shields.io/badge/Telegram-@Airwavbot-26A5E4.svg?logo=telegram&logoColor=white)](https://t.me/Airwavbot)
 
-Autonomous Site Reliability Engineering (SRE), real-time log monitoring, incident response, and deployment orchestration for all services running on **Volcano**.
+Autonomous Site Reliability Engineering (SRE), real-time log monitoring, incident response, and deployment orchestration for all services running on **Cano**.
 
 ---
 
@@ -19,7 +19,7 @@ Autonomous Site Reliability Engineering (SRE), real-time log monitoring, inciden
 * 📘 **[API Reference](docs/API.md)**: Interactive route catalog (10 registered FastAPI endpoints).
 * 🏗️ **[Architecture & Topology](docs/ARCHITECTURE.md)**: Interactive Mermaid service mesh, isolation boundaries, and container specs.
 * ⚡ **[Command Reference](docs/COMMANDS.md)**: Deterministic `@Airwavbot` commands, subflags, and conversational AI features.
-* 🛠️ **[Rollout Guide](docs/TEMPLATES/AUTO_DOCS_GUIDE.md)**: Standard template for rolling auto-docs out to other Volcano repositories.
+* 🛠️ **[Rollout Guide](docs/TEMPLATES/AUTO_DOCS_GUIDE.md)**: Standard template for rolling auto-docs out to other Cano repositories.
 <!-- AUTO-DOCS-END -->
 
 ---

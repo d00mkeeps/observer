@@ -12,8 +12,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Configure Git inside container for SSH pushes
-RUN git config --global user.name "Volcano Observer Agent" && \
-    git config --global user.email "observer@volcano.local" && \
+RUN git config --global user.name "Cano Observer Agent" && \
+    git config --global user.email "observer@cano.local" && \
     git config --global url."git@github.com:".insteadOf "https://github.com/" && \
     git config --global --add safe.directory '*' && \
     mkdir -p -m 0700 /root/.ssh && \

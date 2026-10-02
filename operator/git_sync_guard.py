@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Volcano Cloud Git Synchronization & Integrity Guard.
+"""Cano Cloud Git Synchronization & Integrity Guard.
 
 Ensures development workspaces, production server deployments, and GitHub remotes
 remain strictly synchronized, preventing stale-base commits, accidental overwrites,
@@ -321,7 +321,7 @@ def sync_repository(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Volcano Git Sync & Integrity Guard")
+    parser = argparse.ArgumentParser(description="Cano Git Sync & Integrity Guard")
     subparsers = parser.add_subparsers(dest="command")
 
     # check
@@ -361,7 +361,7 @@ def main():
             from rich.table import Table
 
             console = Console()
-            table = Table(title="🌋 Volcano Fleet Git Integrity & Parity Matrix")
+            table = Table(title="🌋 Cano Fleet Git Integrity & Parity Matrix")
             table.add_column("Repository", style="bold cyan")
             table.add_column("Dev SHA", justify="center")
             table.add_column("Origin SHA", justify="center")

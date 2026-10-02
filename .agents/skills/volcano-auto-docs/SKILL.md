@@ -1,11 +1,11 @@
 ---
 name: volcano-auto-docs
-description: "Universal living documentation generator for Volcano projects. Auto-introspects FastAPI/Python, Next.js/Express, Docker Compose topology, and Database models into self-healing Markdown and Mermaid diagrams on push. ACTIVATE when adding, updating, or maintaining documentation across Volcano repositories."
+description: "Universal living documentation generator for Cano projects. Auto-introspects FastAPI/Python, Next.js/Express, Docker Compose topology, and Database models into self-healing Markdown and Mermaid diagrams on push. ACTIVATE when adding, updating, or maintaining documentation across Cano repositories."
 ---
 
-# Volcano Auto-Docs System
+# Cano Auto-Docs System
 
-The **Volcano Auto-Docs** system automatically maintains authoritative, living documentation across all Volcano server repositories. It extracts route tables, architecture topology, database schemas, and command catalogs without hallucinations or manual upkeep.
+The **Cano Auto-Docs** system automatically maintains authoritative, living documentation across all Cano server repositories. It extracts route tables, architecture topology, database schemas, and command catalogs without hallucinations or manual upkeep.
 
 > [!IMPORTANT]
 > **Always-Ask Policy**:
@@ -33,7 +33,7 @@ The generator script is completely self-contained and zero-dependency (using onl
 ### Running the Generator
 
 ```bash
-# In the root of any Volcano repository:
+# In the root of any Cano repository:
 python3 scripts/volcano_docgen.py
 
 # Or target a specific project directory from anywhere:

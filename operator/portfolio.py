@@ -156,7 +156,7 @@ async def get_system_status() -> dict:
         "status": "ok",
         "timestamp": datetime.now().isoformat(),
         "host": {
-            "name": "volcano",
+            "name": "cano",
             "ram_pct": ram_pct,
             "disk_pct": disk_pct,
             "load": round(load, 2),

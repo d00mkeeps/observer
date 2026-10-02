@@ -1,13 +1,13 @@
 # Observer Architecture & Topology
 
 > *Auto-generated on every push via GitHub Actions. Do not edit manually.*  
-> **Last Generated:** 2026-09-29 11:35:22 UTC
+> **Last Generated:** 2026-10-02 15:18:43 UTC
 
-Observer operates as the autonomous Site Reliability Engineering (SRE) and deployment orchestration engine for all applications running on the **Volcano** server.
+Observer operates as the autonomous Site Reliability Engineering (SRE) and deployment orchestration engine for all applications running on the **Cano** server.
 
 ```mermaid
 graph TD
-    subgraph Volcano_Host["Volcano Server (Ubuntu / Docker)"]
+    subgraph Cano_Host["Cano Server (Ubuntu / Docker)"]
         subgraph Code_Spaces["File System Storage"]
             PROD["/home/miles/prod (11 Repos, :ro)"]
             DEV["/home/miles/dev (Isolated Sandbox, :rw)"]

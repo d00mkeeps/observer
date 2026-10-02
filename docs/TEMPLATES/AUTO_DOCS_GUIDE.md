@@ -1,10 +1,10 @@
-# 🛠️ Standard Guide: Auto-Updating Documentation for Volcano Projects
+# 🛠️ Standard Guide: Auto-Updating Documentation for Cano Projects
 
-This guide defines the standard architecture and template for adding self-updating documentation to any Volcano repository (`volc`, `clearbox`, `horizon`, `qa`, `portfolio`, etc.).
+This guide defines the standard architecture and template for adding self-updating documentation to any Cano repository (`volc`, `clearbox`, `horizon`, `qa`, `portfolio`, etc.).
 
 > [!IMPORTANT]
 > **Antigravity Instruction / Policy**:
-> When an agent is working on any Volcano repository, it must **always ask the user for confirmation** before installing or generating the auto-documentation pipeline on that project.
+> When an agent is working on any Cano repository, it must **always ask the user for confirmation** before installing or generating the auto-documentation pipeline on that project.
 
 ---
 
@@ -22,7 +22,7 @@ flowchart LR
     Gen --> Diff{Docs Changed?}
     Diff -->|Yes| Commit[git-auto-commit-action: 'docs: auto-update [skip ci]']
     Diff -->|No| Skip[No commit needed]
-    Commit --> Deploy[Deploy to Volcano]
+    Commit --> Deploy[Deploy to Cano]
     Skip --> Deploy
 ```
 

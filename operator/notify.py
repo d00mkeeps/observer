@@ -37,7 +37,7 @@ def _send_telegram_sync(token: str, payload: dict) -> bool:
         req = urllib.request.Request(
             url,
             data=data_bytes,
-            headers={"Content-Type": "application/json", "User-Agent": "VolcanoObserver/1.0"},
+            headers={"Content-Type": "application/json", "User-Agent": "CanoObserver/1.0"},
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=10.0) as resp:

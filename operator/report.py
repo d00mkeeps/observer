@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import html
 import logging
@@ -93,7 +94,7 @@ async def generate_daily_report() -> str:
     today = datetime.now().strftime("%d %b %Y, %H:%M")
 
     lines = [
-        f"🌋 <b>Volcano</b>  {today}",
+        f"🌋 <b>Cano</b>  {today}",
         "━━━━━━━━━━━━━━━━━━━━",
         f"💾 <b>RAM</b>   <code>{ram_gb:.1f} GB ({ram_pct}%)</code>",
         f"💿 <b>Disk</b>  <code>{disk_gb:.0f} GB ({disk_pct}%)</code>",

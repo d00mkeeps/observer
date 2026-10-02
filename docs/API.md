@@ -1,9 +1,9 @@
 # Observer Operator API Reference
 
 > *Auto-generated on every push via GitHub Actions. Do not edit manually.*
-> **Last Generated:** 2026-09-29 11:35:22 UTC
+> **Last Generated:** 2026-10-02 15:18:43 UTC
 
-The Observer Operator exposes a lightweight FastAPI service running on port `8006` (`127.0.0.1:8006->8000/tcp`) on Volcano.
+The Observer Operator exposes a lightweight FastAPI service running on port `8006` (`127.0.0.1:8006->8000/tcp`) on Cano.
 
 ## Endpoints Summary
 
@@ -12,12 +12,12 @@ The Observer Operator exposes a lightweight FastAPI service running on port `800
 | `POST` | [`/alert`](#alert-post) | `receive_alert()` | Receive and diagnose Prometheus Alertmanager alerts, translating them into 5-point incident cards and dispatching to Telegram. |
 | `POST` | [`/chat`](#chat-post) | `chat_endpoint()` | Conversational endpoint for CLI and TUI queries. |
 | `POST` | [`/ci/failure`](#cifailure-post) | `receive_ci_failure()` | Receive GitHub Actions workflow/CI failures, log directly to Loki, and dispatch incident alert. |
-| `GET` | [`/costs`](#costs-get) | `get_costs_endpoint()` | Retrieve Volcano ecosystem cost breakdown by app and service. |
+| `GET` | [`/costs`](#costs-get) | `get_costs_endpoint()` | Retrieve Cano ecosystem cost breakdown by app and service. |
 | `POST` | [`/deploy`](#deploy-post) | `receive_deploy()` | Receive deployment notifications from GitHub Actions workflows, update portfolio state, and post summary to Telegram. |
 | `GET` | [`/health`](#health-get) | `health()` | Liveness probe endpoint returning 200 OK for Docker and external uptime checks. |
 | `GET` | [`/report`](#report-get) | `trigger_report()` | Trigger on-demand generation and Telegram broadcast of the daily 24h health and performance report. |
 | `POST` | [`/report`](#report-post) | `trigger_report()` | Trigger on-demand generation and Telegram broadcast of the daily 24h health and performance report. |
-| `GET` | [`/status`](#status-get) | `status_endpoint()` | Retrieve full Volcano fleet status JSON, container health, Prometheus resource gauges, and recent deploy history. |
+| `GET` | [`/status`](#status-get) | `status_endpoint()` | Retrieve full Cano fleet status JSON, container health, Prometheus resource gauges, and recent deploy history. |
 | `POST` | [`/telegram/webhook`](#telegramwebhook-post) | `telegram_webhook()` | Receive incoming Telegram updates via Webhook mode (authenticated with secret token header). |
 
 ---
@@ -56,7 +56,7 @@ curl -s -X POST http://127.0.0.1:8006/ci/failure \
 
 ### `GET /costs`
 **Function:** `get_costs_endpoint()` (Line 175)  
-**Description:** Retrieve Volcano ecosystem cost breakdown by app and service.  
+**Description:** Retrieve Cano ecosystem cost breakdown by app and service.  
 **Parameters:** `app, timeframe`  
 
 ```bash
@@ -101,7 +101,7 @@ curl -s -X POST http://127.0.0.1:8006/report \
 
 ### `GET /status`
 **Function:** `status_endpoint()` (Line 181)  
-**Description:** Retrieve full Volcano fleet status JSON, container health, Prometheus resource gauges, and recent deploy history.  
+**Description:** Retrieve full Cano fleet status JSON, container health, Prometheus resource gauges, and recent deploy history.  
 
 ```bash
 curl -s http://127.0.0.1:8006/status

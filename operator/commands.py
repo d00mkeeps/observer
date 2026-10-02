@@ -28,7 +28,7 @@ async def _prom_query(client: any, expr: str) -> list:
     else:
         try:
             url = f"{PROMETHEUS_URL}/api/v1/query?query={urllib.parse.quote(expr)}"
-            req = urllib.request.Request(url, headers={"User-Agent": "VolcanoObserver/1.0"})
+            req = urllib.request.Request(url, headers={"User-Agent": "CanoObserver/1.0"})
             with urllib.request.urlopen(req, timeout=8.0) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 return data.get("data", {}).get("result", [])
@@ -48,7 +48,7 @@ async def _loki_query(client: any, expr: str) -> list:
     else:
         try:
             url = f"{LOKI_URL}/loki/api/v1/query?query={urllib.parse.quote(expr)}"
-            req = urllib.request.Request(url, headers={"User-Agent": "VolcanoObserver/1.0"})
+            req = urllib.request.Request(url, headers={"User-Agent": "CanoObserver/1.0"})
             with urllib.request.urlopen(req, timeout=10.0) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 return data.get("data", {}).get("result", [])
@@ -125,7 +125,7 @@ async def handle_status_command(args: list[str]) -> str:
     # --- Subflag: `status host` or `status -h` ---
     if arg_str in ("host", "-h", "--host"):
         lines = [
-            "🌋 <b>VOLCANO HOST HEALTH</b>",
+            "🌋 <b>CANO HOST HEALTH</b>",
             "━━━━━━━━━━━━━━━━━━━━",
             f"💾 <b>RAM:</b> <code>{ram_gb:.1f} GB</code> ({ram_pct}% used)",
             f"💿 <b>Disk:</b> <code>{disk_gb:.1f} GB</code> ({disk_pct}% used)",
@@ -213,7 +213,7 @@ async def handle_status_command(args: list[str]) -> str:
     pending_str = f"⚠️ <b>{len(pending_patches)} pending</b> (<code>/patches</code>)" if pending_patches else "0"
 
     lines = [
-        "🌋 <b>VOLCANO STATUS OVERVIEW</b>",
+        "🌋 <b>CANO STATUS OVERVIEW</b>",
         f"⏱ <i>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UTC</i>",
         "━━━━━━━━━━━━━━━━━━━━",
         f"💾 <b>RAM:</b> <code>{ram_pct}%</code> ({ram_gb:.1f} GB) | 💿 <b>Disk:</b> <code>{disk_pct}%</code> ({disk_gb:.1f} GB)",
@@ -306,7 +306,7 @@ def handle_docs_command(args: list[str]) -> str:
             "━━━━━━━━━━━━━━━━━━━━\n"
             "• <code>POST /alert</code> — Receive Prometheus Alertmanager alerts & trigger AI diagnosis\n"
             "• <code>POST /deploy</code> — Log CI/CD deploy events & notify Telegram\n"
-            "• <code>GET /status</code> — Volcano fleet JSON status & container health\n"
+            "• <code>GET /status</code> — Cano fleet JSON status & container health\n"
             "• <code>GET/POST /report</code> — Generate and broadcast daily 24h health report\n"
             "• <code>POST /telegram/webhook</code> — Telegram webhook receiver\n"
             "• <code>GET /health</code> — Liveness probe (200 OK)\n\n"
@@ -363,7 +363,7 @@ def handle_cost_command(args: list[str]) -> str:
 def handle_help_command() -> str:
     """Handle deterministic `help` command."""
     return (
-        "🤖 <b>Volcano Operator & SDLC Assistant</b>\n\n"
+        "🤖 <b>Cano Operator & SDLC Assistant</b>\n\n"
         "<b>🛠️ Engineering Skills (Addy Osmani SDLC Framework):</b>\n"
         "• <code>/research &lt;topic|competitor&gt;</code> — Live web, arXiv, Google Books, Trends & App Store teardown\n"
         "• <code>/ideate &lt;feature&gt;</code> — Architecture options & trade-off analysis\n"
@@ -374,7 +374,7 @@ def handle_help_command() -> str:
         "• <code>/ship &lt;patch_id&gt;</code> — Verified release notes & deployment\n\n"
         "<b>⚡ Fleet & Ops Commands (Instant, 0 Tokens):</b>\n"
         "• <code>/cost</code> / <code>/costs [app]</code> — Month-to-date and daily spend breakdown by app & service\n"
-        "• <code>/status</code> — Overview of Volcano host, projects & errors\n"
+        "• <code>/status</code> — Overview of Cano host, projects & errors\n"
         "• <code>/status &lt;project&gt;</code> — Detail for project (e.g. <code>status volc</code>, <code>status horizon</code>)\n"
         "• <code>/status -v</code> / <code>status --all</code> — Expanded container matrix\n"
         "• <code>/status host</code> / <code>/health</code> — Host RAM, Disk, Load, Uptime & containers\n"

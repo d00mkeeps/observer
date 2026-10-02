@@ -167,7 +167,7 @@ def search_google_web(query: str, max_results: int = 5) -> str:
     )
 
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "VolcanoObserver/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "CanoObserver/1.0"})
         with urllib.request.urlopen(req, timeout=10.0) as resp:
             data = json.loads(resp.read().decode("utf-8"))
 
@@ -227,7 +227,7 @@ def search_google_books(query: str, max_results: int = 5) -> str:
     )
 
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "VolcanoObserver/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "CanoObserver/1.0"})
         with urllib.request.urlopen(req, timeout=10.0) as resp:
             data = json.loads(resp.read().decode("utf-8"))
 
@@ -365,7 +365,7 @@ def search_arxiv(query: str, max_results: int = 5) -> str:
     )
 
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "VolcanoObserver/1.0 (mailto:miles@mileshillary.com)"})
+        req = urllib.request.Request(url, headers={"User-Agent": "CanoObserver/1.0 (mailto:miles@mileshillary.com)"})
         with urllib.request.urlopen(req, timeout=12.0) as resp:
             xml_data = resp.read()
 
@@ -444,7 +444,7 @@ def search_app_store_reviews(app_name_or_id: str, country: str = "us", max_resul
     if not target.isdigit():
         search_url = f"https://itunes.apple.com/search?term={urllib.parse.quote(target)}&entity=software&limit=1&country={country}"
         try:
-            req = urllib.request.Request(search_url, headers={"User-Agent": "VolcanoObserver/1.0"})
+            req = urllib.request.Request(search_url, headers={"User-Agent": "CanoObserver/1.0"})
             with urllib.request.urlopen(req, timeout=10.0) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             results = data.get("results", [])
@@ -459,7 +459,7 @@ def search_app_store_reviews(app_name_or_id: str, country: str = "us", max_resul
     # Query Apple RSS JSON Feed for Customer Reviews
     rss_url = f"https://itunes.apple.com/{country}/rss/customerreviews/id={app_id}/sortBy=mostRecent/json"
     try:
-        req = urllib.request.Request(rss_url, headers={"User-Agent": "VolcanoObserver/1.0"})
+        req = urllib.request.Request(rss_url, headers={"User-Agent": "CanoObserver/1.0"})
         with urllib.request.urlopen(req, timeout=10.0) as resp:
             data = json.loads(resp.read().decode("utf-8"))
 

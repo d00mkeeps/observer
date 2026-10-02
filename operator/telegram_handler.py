@@ -174,7 +174,7 @@ async def register_bot_commands():
     if not token:
         return
     commands = [
-        {"command": "status", "description": "Fleet health & Volcano resource gauges"},
+        {"command": "status", "description": "Fleet health & Cano resource gauges"},
         {"command": "cost", "description": "Spend breakdown by app & service (LLM, host, search)"},
         {"command": "research", "description": "Live web, arXiv, Google Books, Trends & App Store"},
         {"command": "ideate", "description": "Architecture options & trade-off analysis"},
@@ -187,7 +187,7 @@ async def register_bot_commands():
         {"command": "errors", "description": "Loki error audit across all apps"},
         {"command": "docs", "description": "Living API & architecture documentation"},
         {"command": "patches", "description": "Pending sandbox patches awaiting approval"},
-        {"command": "health", "description": "Volcano host CPU, RAM, Disk, Uptime"},
+        {"command": "health", "description": "Cano host CPU, RAM, Disk, Uptime"},
         {"command": "help", "description": "Command cheat sheet & guide"},
     ]
     try:

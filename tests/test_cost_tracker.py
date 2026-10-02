@@ -55,7 +55,7 @@ class TestCostTracker(unittest.TestCase):
         
         # General overview card
         overview = self.tracker.format_telegram_card(app_filter=None, timeframe="month")
-        self.assertIn("Volcano Fleet Cost Intelligence", overview)
+        self.assertIn("Cano Fleet Cost Intelligence", overview)
         self.assertIn("Gemini AI", overview)
         self.assertIn("observer", overview)
 

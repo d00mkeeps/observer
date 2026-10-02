@@ -1,7 +1,7 @@
 # Observer / Airwavbot Command Reference
 
 > *Auto-generated on every push via GitHub Actions. Do not edit manually.*  
-> **Last Generated:** 2026-09-29 11:35:22 UTC
+> **Last Generated:** 2026-10-02 15:18:43 UTC
 
 All commands work directly in Telegram with `@Airwavbot`. Commands are **slash-optional** (e.g. `status` and `/status` behave identically).
 
@@ -16,7 +16,7 @@ These commands execute deterministically against Prometheus, Loki, and local sta
 | `status` | *(none)* | High-level fleet overview: host RAM/Disk/Load, 8 project statuses, 24h error count, pending patches. | `status` |
 | `status <project>` | `volc`, `clearbox`, `horizon`, `observer`, `portfolio`, `qa`, etc. | Deep-dive status for a specific project: container states, last deploy timestamp, and 24h Loki error tally. | `status volc` |
 | `status -v` | `-v`, `--verbose`, `-a`, `--all` | Verbose mode: lists every single container and individual error count. | `status -v` |
-| `status host` | `host`, `-h`, `--host`, `health` | Volcano host hardware metrics (RAM GB, Disk GB, 1m load, uptime in days, active container list). | `health` |
+| `status host` | `host`, `-h`, `--host`, `health` | Cano host hardware metrics (RAM GB, Disk GB, 1m load, uptime in days, active container list). | `health` |
 | `errors` | `[1h\|6h\|24h\|7d]` | Direct Loki error audit across all apps over custom lookback duration (default `24h`). | `errors 1h` |
 | `patches` | *(none)* | Lists all sandbox bugfix patches currently awaiting your approval. | `patches` |
 | `approve <id>` | `<patch_id>` | Commits the verified sandbox patch, pushes to GitHub via SSH, and triggers GitHub Actions deployment. | `/approve patch-volc-8821` |

@@ -173,13 +173,13 @@ async def receive_ci_failure(request: Request):
 
 @app.get("/costs")
 async def get_costs_endpoint(app: str | None = None, timeframe: str = "month"):
-    """Retrieve Volcano ecosystem cost breakdown by app and service."""
+    """Retrieve Cano ecosystem cost breakdown by app and service."""
     return cost_tracker.get_summary(timeframe=timeframe)
 
 
 @app.get("/status")
 async def status_endpoint():
-    """Retrieve full Volcano fleet status JSON, container health, Prometheus resource gauges, and recent deploy history."""
+    """Retrieve full Cano fleet status JSON, container health, Prometheus resource gauges, and recent deploy history."""
     return await get_system_status()
 
 

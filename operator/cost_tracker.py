@@ -1,8 +1,8 @@
-"""Cost Tracking & Financial Intelligence Engine for Volcano & Observer.
+"""Cost Tracking & Financial Intelligence Engine for Cano & Observer.
 
 Tracks, attributes, and calculates expenses both overall and broken down
 by app (volc, clearbox, horizon, observer, portfolio, qa) and service layer
-(Gemini LLM tokens, Google Search API queries, Volcano host compute, GitHub Actions CI).
+(Gemini LLM tokens, Google Search API queries, Cano host compute, GitHub Actions CI).
 """
 
 import os
@@ -270,7 +270,7 @@ class CostTracker:
 
         # Full Overview Card
         lines = [
-            f"💳 <b>Volcano Fleet Cost Intelligence</b> ({period_title})",
+            f"💳 <b>Cano Fleet Cost Intelligence</b> ({period_title})",
             f"• <b>Total Estimated Cost:</b> <code>${total:.4f} USD</code>\n",
             f"📊 <b>Breakdown by Service:</b>",
         ]
@@ -285,7 +285,7 @@ class CostTracker:
         ci_mins = svc.get("github_actions", {}).get("minutes", 0.0)
 
         lines.append(f"• <b>Gemini AI:</b> <code>${llm_c:.4f}</code> (<code>{llm_tok:,}</code> tokens)")
-        lines.append(f"• <b>Host Compute:</b> <code>${infra_c:.4f}</code> (Volcano baseline)")
+        lines.append(f"• <b>Host Compute:</b> <code>${infra_c:.4f}</code> (Cano baseline)")
         lines.append(f"• <b>Google Search:</b> <code>${search_c:.4f}</code> (<code>{search_cnt}</code> free queries)")
         lines.append(f"• <b>GitHub Actions CI:</b> <code>$0.0000</code> (<code>{ci_runs}</code> runs, {ci_mins:.1f}m free)")
 

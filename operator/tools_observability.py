@@ -19,7 +19,7 @@ def _prom_sync(expr: str) -> list:
     """Synchronously query Prometheus."""
     try:
         url = f"{PROMETHEUS_URL}/api/v1/query?query={urllib.parse.quote(expr)}"
-        req = urllib.request.Request(url, headers={"User-Agent": "VolcanoObserver/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "CanoObserver/1.0"})
         with urllib.request.urlopen(req, timeout=10.0) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             return data.get("data", {}).get("result", [])
@@ -32,7 +32,7 @@ def _loki_sync(expr: str) -> list:
     """Synchronously query Loki."""
     try:
         url = f"{LOKI_URL}/loki/api/v1/query?query={urllib.parse.quote(expr)}"
-        req = urllib.request.Request(url, headers={"User-Agent": "VolcanoObserver/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "CanoObserver/1.0"})
         with urllib.request.urlopen(req, timeout=15.0) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             return data.get("data", {}).get("result", [])
@@ -60,7 +60,7 @@ def push_loki_log(labels: dict[str, str], message: str, timestamp_ns: int | None
         req = urllib.request.Request(
             f"{LOKI_URL}/loki/api/v1/push",
             data=data_bytes,
-            headers={"Content-Type": "application/json", "User-Agent": "VolcanoObserver/1.0"},
+            headers={"Content-Type": "application/json", "User-Agent": "CanoObserver/1.0"},
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=10.0) as resp:
@@ -145,7 +145,7 @@ def query_all_errors(duration: str = "24h", limit_per_app: int = 5) -> str:
         )
         sample_url = f"{LOKI_URL}/loki/api/v1/query_range?query={sample_query}&start={start_ns}&end={end_ns}&limit=15"
         try:
-            req = urllib.request.Request(sample_url, headers={"User-Agent": "VolcanoObserver/1.0"})
+            req = urllib.request.Request(sample_url, headers={"User-Agent": "CanoObserver/1.0"})
             with urllib.request.urlopen(req, timeout=10.0) as resp:
                 sr_data = json.loads(resp.read().decode("utf-8"))
                 data = sr_data.get("data", {}).get("result", [])
@@ -193,7 +193,7 @@ def search_container_logs(query: str, container: str = "", duration: str = "24h"
     url = f"{LOKI_URL}/loki/api/v1/query_range?query={encoded_logql}&start={start_ns}&end={end_ns}&limit={limit}"
 
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "VolcanoObserver/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "CanoObserver/1.0"})
         with urllib.request.urlopen(req, timeout=12.0) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             results = data.get("data", {}).get("result", [])
@@ -256,7 +256,7 @@ def get_recent_logs(container: str, minutes: int = 15, limit: int = 25) -> str:
     url = f"{LOKI_URL}/loki/api/v1/query_range?query={urllib.parse.quote(query)}&start={start_ns}&end={end_ns}&limit={limit}"
 
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "VolcanoObserver/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "CanoObserver/1.0"})
         with urllib.request.urlopen(req, timeout=12.0) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             results = data.get("data", {}).get("result", [])
@@ -341,7 +341,7 @@ def _get_host_stats() -> tuple[float, float, int, int]:
 
 
 def get_system_health() -> str:
-    """Check live metrics for CPU, RAM, Disk, uptime, and running Docker containers across Volcano."""
+    """Check live metrics for CPU, RAM, Disk, uptime, and running Docker containers across Cano."""
     try:
         load, uptime_days, ram_pct, disk_pct = _get_host_stats()
         docker_containers = _get_docker_containers()
@@ -364,7 +364,7 @@ def get_system_health() -> str:
 
         return (
             f"🖥️ <b>Host Health Overview:</b>\n"
-            f"- <b>Host:</b> <code>volcano</code>\n"
+            f"- <b>Host:</b> <code>cano</code>\n"
             f"- <b>CPU Load (1m):</b> {load:.2f}\n"
             f"- <b>RAM Usage:</b> {ram_pct}%\n"
             f"- <b>Disk Usage:</b> {disk_pct}%\n"
