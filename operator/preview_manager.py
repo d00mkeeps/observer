@@ -71,7 +71,7 @@ def render_trampoline_html(project: str, tunnel_url: str | None = None) -> str:
 </html>"""
 
     # Escape for HTML attributes and JS
-    escaped_url = urllib.parse.quote(tunnel_url, safe=":/%?=&-._~")
+    escaped_url = urllib.parse.quote(tunnel_url, safe=":/%?=&-._~+")
     
     return f"""<!DOCTYPE html>
 <html lang="en">
