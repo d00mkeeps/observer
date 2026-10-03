@@ -47,8 +47,12 @@ def _send_telegram_sync(token: str, payload: dict) -> bool:
         return False
 
 
-async def send_telegram(text: str, channel: str = "default") -> None:
-    """Send an HTML-formatted message to a Telegram chat."""
+async def send_telegram(
+    text: str,
+    channel: str = "default",
+    reply_markup: dict | None = None,
+) -> dict | None:
+    """Send an HTML-formatted message to a Telegram chat, optionally with reply_markup."""
     token = os.environ.get("TELEGRAM_TOKEN", "").strip()
     chat_id = _chat_id_for(channel)
 
@@ -58,7 +62,7 @@ async def send_telegram(text: str, channel: str = "default") -> None:
             "TELEGRAM_TOKEN or chat_id not configured",
             channel,
         )
-        return
+        return None
 
     # Cap message size at 4000 characters for Telegram limits
     if len(text) > 4000:
@@ -69,6 +73,8 @@ async def send_telegram(text: str, channel: str = "default") -> None:
         "text":       text,
         "parse_mode": "HTML",
     }
+    if reply_markup is not None:
+        payload["reply_markup"] = reply_markup
 
     if httpx is not None:
         async with httpx.AsyncClient(timeout=10) as client:
@@ -76,16 +82,96 @@ async def send_telegram(text: str, channel: str = "default") -> None:
                 f"https://api.telegram.org/bot{token}/sendMessage",
                 json=payload,
             )
+            if r.status_code == 200:
+                return r.json()
             if r.status_code == 400:
                 log.warning("Telegram HTML send error (%s), falling back to plain text", r.text)
                 payload["text"] = _strip_html_tags(text)
                 payload.pop("parse_mode", None)
-                await client.post(
+                r2 = await client.post(
                     f"https://api.telegram.org/bot{token}/sendMessage",
                     json=payload,
                 )
+                if r2.status_code == 200:
+                    return r2.json()
     else:
         _send_telegram_sync(token, payload)
+    return None
+
+
+async def edit_telegram_message(
+    chat_id: str | int,
+    message_id: int,
+    text: str,
+    reply_markup: dict | None = None,
+) -> dict | None:
+    """Edit an existing Telegram message with updated text and optional reply_markup."""
+    token = os.environ.get("TELEGRAM_TOKEN", "").strip()
+    if not token or not chat_id or not message_id:
+        return None
+
+    if len(text) > 4000:
+        text = text[:3950] + "\n\n<i>… (message truncated)</i>"
+
+    payload = {
+        "chat_id":    chat_id,
+        "message_id": message_id,
+        "text":       text,
+        "parse_mode": "HTML",
+    }
+    if reply_markup is not None:
+        payload["reply_markup"] = reply_markup
+
+    if httpx is not None:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.post(
+                    f"https://api.telegram.org/bot{token}/editMessageText",
+                    json=payload,
+                )
+                if r.status_code == 200:
+                    return r.json()
+                if r.status_code == 400:
+                    log.warning("Telegram edit HTML error (%s), falling back to plain text", r.text)
+                    payload["text"] = _strip_html_tags(text)
+                    payload.pop("parse_mode", None)
+                    r2 = await client.post(
+                        f"https://api.telegram.org/bot{token}/editMessageText",
+                        json=payload,
+                    )
+                    if r2.status_code == 200:
+                        return r2.json()
+        except Exception as e:
+            log.warning("Exception in edit_telegram_message: %s", e)
+    return None
+
+
+async def answer_callback_query(
+    callback_query_id: str,
+    text: str = "",
+    show_alert: bool = False,
+) -> bool:
+    """Acknowledge a Telegram callback query."""
+    token = os.environ.get("TELEGRAM_TOKEN", "").strip()
+    if not token or not callback_query_id:
+        return False
+
+    payload = {
+        "callback_query_id": callback_query_id,
+        "text":              text,
+        "show_alert":        show_alert,
+    }
+    if httpx is not None:
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                r = await client.post(
+                    f"https://api.telegram.org/bot{token}/answerCallbackQuery",
+                    json=payload,
+                )
+                return r.status_code == 200
+        except Exception as e:
+            log.warning("Exception in answer_callback_query: %s", e)
+    return False
 
 
 async def send_telegram_reply(

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Header, HTTPException
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from notify import send_telegram
 from context import gather_context
@@ -16,6 +17,12 @@ from tools_observability import push_loki_log
 from cost_tracker import cost_tracker
 from telegram_handler import handle_telegram_update, run_telegram_poller
 from agent import process_telegram_message
+from preview_manager import (
+    start_preview_session,
+    stop_preview_session,
+    get_active_preview,
+    render_trampoline_html,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 log = logging.getLogger("operator")
@@ -222,6 +229,65 @@ async def chat_endpoint(request: Request):
         user_name=user_name,
     )
     return {"reply": reply}
+
+
+@app.post("/preview/notify")
+async def preview_notify(request: Request):
+    """Receive Metro tunnel announcement, register ephemeral session, and dispatch interactive Telegram notification."""
+    data = await request.json()
+    project = data.get("project", "volc").strip().lower()
+    tunnel_url = data.get("tunnel_url", "").strip()
+    timeout_minutes = int(data.get("timeout_minutes", 30))
+    pid = data.get("pid")
+    if pid is not None:
+        try:
+            pid = int(pid)
+        except (ValueError, TypeError):
+            pid = None
+
+    if not tunnel_url:
+        raise HTTPException(status_code=400, detail="Missing tunnel_url")
+
+    res = await start_preview_session(
+        project=project,
+        tunnel_url=tunnel_url,
+        timeout_minutes=timeout_minutes,
+        pid=pid,
+    )
+    return res
+
+
+@app.post("/preview/stop")
+async def preview_stop(request: Request):
+    """Programmatically stop active preview session and clean up Metro tunnel process."""
+    data = await request.json()
+    project = data.get("project", "volc").strip().lower()
+    reason = data.get("reason", "Stopped via /preview/stop API.")
+    ok = await stop_preview_session(project=project, reason=reason)
+    return {"ok": ok, "project": project}
+
+
+@app.get("/preview/active")
+async def preview_active(p: str = "volc"):
+    """Check active preview session state for a project."""
+    session = get_active_preview(project=p.lower())
+    if not session:
+        return {"active": False, "project": p}
+    return {"active": True, "project": p, "session": session}
+
+
+@app.get("/preview/launch", response_class=HTMLResponse)
+async def preview_launch(p: str = "volc", url: str | None = None):
+    """Render iOS Safari trampoline page that immediately invokes the Dev Client custom scheme."""
+    tunnel_url = url
+    if not tunnel_url:
+        session = get_active_preview(project=p.lower())
+        if session:
+            tunnel_url = session.get("tunnel_url")
+
+    status_code = 200 if tunnel_url else 410
+    html_content = render_trampoline_html(project=p, tunnel_url=tunnel_url)
+    return HTMLResponse(content=html_content, status_code=status_code)
 
 
 @app.get("/health")

@@ -3,7 +3,7 @@ import html
 import asyncio
 import logging
 import httpx
-from notify import send_telegram_reply, send_chat_action
+from notify import send_telegram_reply, send_chat_action, answer_callback_query
 from agent import process_telegram_message
 from patch_manager import apply_and_push_patch, reject_patch, get_pending_patches
 from commands import execute_deterministic_command
@@ -60,6 +60,36 @@ def is_authorized(chat_id: str | int, user_id: str | int | None = None) -> bool:
 
 async def handle_telegram_update(update: dict) -> dict:
     """Parse and process an incoming Telegram update object."""
+    # 0. Intercept Callback Queries (e.g. Stop Preview button)
+    callback_query = update.get("callback_query")
+    if callback_query:
+        cq_id = callback_query.get("id")
+        cq_data = callback_query.get("data", "")
+        cq_from = callback_query.get("from", {})
+        user_id = cq_from.get("id")
+        user_name = cq_from.get("first_name") or cq_from.get("username") or "Operator"
+        cq_msg = callback_query.get("message", {})
+        chat_id = cq_msg.get("chat", {}).get("id")
+
+        if not is_authorized(chat_id, user_id):
+            log.warning("Unauthorized callback query attempt from user %s (chat %s)", user_id, chat_id)
+            if cq_id:
+                await answer_callback_query(cq_id, text="Unauthorized", show_alert=True)
+            return {"ok": False, "error": "unauthorized"}
+
+        if cq_data.startswith("preview_stop:"):
+            project = cq_data.split(":", 1)[1].strip() or "volc"
+            log.info("Received preview_stop callback for project '%s' from %s", project, user_name)
+            from preview_manager import stop_preview_session
+            await stop_preview_session(project=project, reason=f"Stopped via Telegram button by {user_name}.")
+            if cq_id:
+                await answer_callback_query(cq_id, text=f"⏹️ {project.capitalize()} preview stopped.", show_alert=False)
+            return {"ok": True, "action": "preview_stopped", "project": project}
+
+        if cq_id:
+            await answer_callback_query(cq_id)
+        return {"ok": True, "skipped": "unhandled_callback"}
+
     message = update.get("message") or update.get("edited_message")
     if not message:
         return {"ok": True, "skipped": "no_message"}
