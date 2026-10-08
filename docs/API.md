@@ -1,7 +1,7 @@
 # Observer Operator API Reference
 
 > *Auto-generated on every push via GitHub Actions. Do not edit manually.*
-> **Last Generated:** 2026-10-03 15:22:23 UTC
+> **Last Generated:** 2026-10-08 09:08:37 UTC
 
 The Observer Operator exposes a lightweight FastAPI service running on port `8006` (`127.0.0.1:8006->8000/tcp`) on Cano.
 
@@ -18,6 +18,7 @@ The Observer Operator exposes a lightweight FastAPI service running on port `800
 | `GET` | [`/preview/active`](#previewactive-get) | `preview_active()` | Check active preview session state for a project. |
 | `GET` | [`/preview/launch`](#previewlaunch-get) | `preview_launch()` | Render iOS Safari trampoline page that immediately invokes the Dev Client custom scheme. |
 | `POST` | [`/preview/notify`](#previewnotify-post) | `preview_notify()` | Receive Metro tunnel announcement, register ephemeral session, and dispatch interactive Telegram notification. |
+| `POST` | [`/preview/start`](#previewstart-post) | `preview_start_endpoint()` | Trigger on-demand cloud preview session on Cano. |
 | `POST` | [`/preview/stop`](#previewstop-post) | `preview_stop()` | Programmatically stop active preview session and clean up Metro tunnel process. |
 | `GET` | [`/report`](#report-get) | `trigger_report()` | Trigger on-demand generation and Telegram broadcast of the daily 24h health and performance report. |
 | `POST` | [`/report`](#report-post) | `trigger_report()` | Trigger on-demand generation and Telegram broadcast of the daily 24h health and performance report. |
@@ -29,7 +30,7 @@ The Observer Operator exposes a lightweight FastAPI service running on port `800
 ## Endpoint Details
 
 ### `POST /alert`
-**Function:** `receive_alert()` (Line 82)  
+**Function:** `receive_alert()` (Line 83)  
 **Description:** Receive and diagnose Prometheus Alertmanager alerts, translating them into 5-point incident cards and dispatching to Telegram.  
 
 ```bash
@@ -39,7 +40,7 @@ curl -s -X POST http://127.0.0.1:8006/alert \
 ```
 
 ### `POST /chat`
-**Function:** `chat_endpoint()` (Line 219)  
+**Function:** `chat_endpoint()` (Line 220)  
 **Description:** Conversational endpoint for CLI and TUI queries.  
 
 ```bash
@@ -49,7 +50,7 @@ curl -s -X POST http://127.0.0.1:8006/chat \
 ```
 
 ### `POST /ci/failure`
-**Function:** `receive_ci_failure()` (Line 127)  
+**Function:** `receive_ci_failure()` (Line 128)  
 **Description:** Receive GitHub Actions workflow/CI failures, log directly to Loki, and dispatch incident alert.  
 
 ```bash
@@ -59,7 +60,7 @@ curl -s -X POST http://127.0.0.1:8006/ci/failure \
 ```
 
 ### `GET /costs`
-**Function:** `get_costs_endpoint()` (Line 182)  
+**Function:** `get_costs_endpoint()` (Line 183)  
 **Description:** Retrieve Cano ecosystem cost breakdown by app and service.  
 **Parameters:** `app, timeframe`  
 
@@ -68,7 +69,7 @@ curl -s http://127.0.0.1:8006/costs
 ```
 
 ### `POST /deploy`
-**Function:** `receive_deploy()` (Line 98)  
+**Function:** `receive_deploy()` (Line 99)  
 **Description:** Receive deployment notifications from GitHub Actions workflows, update portfolio state, and post summary to Telegram.  
 
 ```bash
@@ -78,7 +79,7 @@ curl -s -X POST http://127.0.0.1:8006/deploy \
 ```
 
 ### `GET /health`
-**Function:** `health()` (Line 294)  
+**Function:** `health()` (Line 307)  
 **Description:** Liveness probe endpoint returning 200 OK for Docker and external uptime checks.  
 
 ```bash
@@ -86,7 +87,7 @@ curl -s http://127.0.0.1:8006/health
 ```
 
 ### `GET /preview/active`
-**Function:** `preview_active()` (Line 271)  
+**Function:** `preview_active()` (Line 284)  
 **Description:** Check active preview session state for a project.  
 **Parameters:** `p`  
 
@@ -95,7 +96,7 @@ curl -s http://127.0.0.1:8006/preview/active
 ```
 
 ### `GET /preview/launch`
-**Function:** `preview_launch()` (Line 280)  
+**Function:** `preview_launch()` (Line 293)  
 **Description:** Render iOS Safari trampoline page that immediately invokes the Dev Client custom scheme.  
 **Parameters:** `p, url`  
 
@@ -104,7 +105,7 @@ curl -s http://127.0.0.1:8006/preview/launch
 ```
 
 ### `POST /preview/notify`
-**Function:** `preview_notify()` (Line 235)  
+**Function:** `preview_notify()` (Line 248)  
 **Description:** Receive Metro tunnel announcement, register ephemeral session, and dispatch interactive Telegram notification.  
 
 ```bash
@@ -113,8 +114,18 @@ curl -s -X POST http://127.0.0.1:8006/preview/notify \
   -d '{}'
 ```
 
+### `POST /preview/start`
+**Function:** `preview_start_endpoint()` (Line 236)  
+**Description:** Trigger on-demand cloud preview session on Cano.  
+
+```bash
+curl -s -X POST http://127.0.0.1:8006/preview/start \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
 ### `POST /preview/stop`
-**Function:** `preview_stop()` (Line 261)  
+**Function:** `preview_stop()` (Line 274)  
 **Description:** Programmatically stop active preview session and clean up Metro tunnel process.  
 
 ```bash
@@ -124,7 +135,7 @@ curl -s -X POST http://127.0.0.1:8006/preview/stop \
 ```
 
 ### `GET /report`
-**Function:** `trigger_report()` (Line 195)  
+**Function:** `trigger_report()` (Line 196)  
 **Description:** Trigger on-demand generation and Telegram broadcast of the daily 24h health and performance report.  
 
 ```bash
@@ -132,7 +143,7 @@ curl -s http://127.0.0.1:8006/report
 ```
 
 ### `POST /report`
-**Function:** `trigger_report()` (Line 195)  
+**Function:** `trigger_report()` (Line 196)  
 **Description:** Trigger on-demand generation and Telegram broadcast of the daily 24h health and performance report.  
 
 ```bash
@@ -142,7 +153,7 @@ curl -s -X POST http://127.0.0.1:8006/report \
 ```
 
 ### `GET /status`
-**Function:** `status_endpoint()` (Line 188)  
+**Function:** `status_endpoint()` (Line 189)  
 **Description:** Retrieve full Cano fleet status JSON, container health, Prometheus resource gauges, and recent deploy history.  
 
 ```bash
@@ -150,7 +161,7 @@ curl -s http://127.0.0.1:8006/status
 ```
 
 ### `POST /telegram/webhook`
-**Function:** `telegram_webhook()` (Line 203)  
+**Function:** `telegram_webhook()` (Line 204)  
 **Description:** Receive incoming Telegram updates via Webhook mode (authenticated with secret token header).  
 **Parameters:** `x_telegram_bot_api_secret_token`  
 
