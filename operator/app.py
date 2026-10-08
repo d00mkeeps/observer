@@ -22,6 +22,7 @@ from preview_manager import (
     stop_preview_session,
     get_active_preview,
     render_trampoline_html,
+    trigger_preview_start,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -229,6 +230,18 @@ async def chat_endpoint(request: Request):
         user_name=user_name,
     )
     return {"reply": reply}
+
+
+@app.post("/preview/start")
+async def preview_start_endpoint(request: Request):
+    """Trigger on-demand cloud preview session on Cano."""
+    data = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    project = data.get("project", "volc").strip().lower()
+    timeout_minutes = int(data.get("timeout_minutes", 30))
+    res = await trigger_preview_start(project=project, timeout_minutes=timeout_minutes)
+    if not res.get("ok"):
+        raise HTTPException(status_code=500, detail=res.get("error", "Failed starting preview"))
+    return res
 
 
 @app.post("/preview/notify")

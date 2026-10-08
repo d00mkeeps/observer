@@ -167,7 +167,77 @@ async def handle_telegram_update(update: dict) -> dict:
         await send_telegram_reply(chat_id=chat_id, text=reply_msg, reply_to_message_id=message_id)
         return {"ok": True, "status": "updating" if success else "update_failed"}
 
-    # 5. Deterministic Commands Interceptor: status, errors, health, help (with subflags, no LLM)
+    # 5. Direct Command Interceptor: preview / /preview
+    if first_word_clean == "preview":
+        parts = clean_text.split()
+        subcmd = parts[1].lower() if len(parts) > 1 else ""
+        from preview_manager import get_active_preview, stop_preview_session, trigger_preview_start
+
+        if subcmd == "stop":
+            await send_chat_action(chat_id=chat_id, action="typing")
+            stopped = await stop_preview_session("volc", reason=f"Stopped via /preview stop by {user_name}.")
+            reply_msg = "⏹️ <b>Volc Dev Preview Stopped</b>\nMetro bundler process and Cloudflare tunnel have been terminated."
+            await send_telegram_reply(chat_id=chat_id, text=reply_msg, reply_to_message_id=message_id)
+            return {"ok": True, "status": "preview_stopped"}
+
+        if subcmd == "status":
+            session = get_active_preview("volc")
+            if not session:
+                reply_msg = "ℹ️ No mobile dev preview is currently active. Type <code>/preview</code> to launch one."
+                await send_telegram_reply(chat_id=chat_id, text=reply_msg, reply_to_message_id=message_id)
+            else:
+                reply_msg = (
+                    f"📱 <b>Volc Dev Preview Active</b>\n"
+                    f"• Tunnel: <code>Connected</code>\n"
+                    f"• Expires: <code>{session.get('expires_at')}</code>\n\n"
+                    f"👉 <a href=\"{session.get('trampoline_url')}\">Tap to Open in Volc</a>"
+                )
+                reply_markup = {
+                    "inline_keyboard": [
+                        [
+                            {"text": "📱 Open in Volc", "url": session.get("trampoline_url")},
+                            {"text": "🛑 Stop Preview", "callback_data": "preview_stop:volc"},
+                        ]
+                    ]
+                }
+                await send_telegram_reply(chat_id=chat_id, text=reply_msg, reply_to_message_id=message_id, reply_markup=reply_markup)
+            return {"ok": True, "status": "preview_status"}
+
+        # Default: /preview or /preview start or /preview volc
+        session = get_active_preview("volc")
+        if session:
+            reply_msg = (
+                f"📱 <b>Volc Dev Preview Already Live</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"• <b>Tunnel:</b> <code>Connected</code>\n"
+                f"• <b>Backend:</b> <code>volc-backend-dev (:8102)</code>\n\n"
+                f"👉 <i>Tap below to launch into Volc Dev Build:</i>"
+            )
+            reply_markup = {
+                "inline_keyboard": [
+                    [
+                        {"text": "📱 Open in Volc", "url": session.get("trampoline_url")},
+                        {"text": "🛑 Stop Preview", "callback_data": "preview_stop:volc"},
+                    ]
+                ]
+            }
+            await send_telegram_reply(chat_id=chat_id, text=reply_msg, reply_to_message_id=message_id, reply_markup=reply_markup)
+            return {"ok": True, "status": "preview_already_active"}
+
+        await send_chat_action(chat_id=chat_id, action="typing")
+        await send_telegram_reply(
+            chat_id=chat_id,
+            text="⏳ <b>Starting Volc Mobile Preview...</b>\nInitializing Metro bundler and ephemeral Cloudflare tunnel on Cano. Stand by for the interactive launch card.",
+            reply_to_message_id=message_id,
+        )
+        res = await trigger_preview_start(project="volc", timeout_minutes=30)
+        if not res.get("ok"):
+            err_msg = f"❌ Failed starting mobile preview:\n<code>{html.escape(str(res.get('error', 'Unknown error')))}</code>"
+            await send_telegram_reply(chat_id=chat_id, text=err_msg, reply_to_message_id=message_id)
+            return {"ok": False, "error": res.get("error")}
+        return {"ok": True, "status": "preview_started"}
+
+    # 6. Deterministic Commands Interceptor: status, errors, health, help (with subflags, no LLM)
     deterministic_reply = await execute_deterministic_command(clean_text)
     if deterministic_reply is not None:
         log.info("Handled deterministic command '%s' (0 LLM tokens used)", clean_text)

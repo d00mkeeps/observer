@@ -251,6 +251,43 @@ async def start_preview_session(
     }
 
 
+PREVIEW_DAEMON_URL = os.environ.get("PREVIEW_DAEMON_URL", "http://172.18.0.1:8007")
+
+
+async def trigger_preview_start(project: str = "volc", timeout_minutes: int = 30) -> dict:
+    """Trigger the cloud preview daemon on Cano to launch Metro and Cloudflare tunnel."""
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{PREVIEW_DAEMON_URL}/start",
+                json={"project": project, "timeout_minutes": timeout_minutes},
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            log.warning("Preview daemon returned status %d: %s", resp.status_code, resp.text)
+            return {"ok": False, "error": f"Daemon returned HTTP {resp.status_code}"}
+    except Exception as e:
+        log.error("Failed contacting preview daemon at %s: %s", PREVIEW_DAEMON_URL, e)
+        return {"ok": False, "error": str(e)}
+
+
+async def trigger_preview_stop(project: str = "volc", reason: str = "Stopped by user.") -> dict:
+    """Trigger the cloud preview daemon on Cano to stop Metro and Cloudflare tunnel."""
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                f"{PREVIEW_DAEMON_URL}/stop",
+                json={"project": project, "reason": reason},
+            )
+            if resp.status_code == 200:
+                return resp.json()
+    except Exception as e:
+        log.warning("Could not reach preview daemon for stop: %s", e)
+    return {"ok": True}
+
+
 async def stop_preview_session(project: str = "volc", reason: str = "Stopped by user.") -> bool:
     """Terminate the active preview session, kill the Metro process, and edit the Telegram message."""
     session = _active_previews.pop(project, None)
@@ -260,8 +297,11 @@ async def stop_preview_session(project: str = "volc", reason: str = "Stopped by 
     if wd and not wd.done():
         wd.cancel()
 
+    # Inform host daemon if running
+    asyncio.create_task(trigger_preview_stop(project=project, reason=reason))
+
     if not session:
-        log.info("No active preview session found for '%s'", project)
+        log.info("No active preview session found in memory for '%s'", project)
         return False
 
     # 1. Terminate Metro PID if known
@@ -306,3 +346,4 @@ def get_active_preview(project: str = "volc") -> dict | None:
         return None
         
     return session
+
