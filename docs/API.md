@@ -1,7 +1,7 @@
 # Observer Operator API Reference
 
 > *Auto-generated on every push via GitHub Actions. Do not edit manually.*
-> **Last Generated:** 2026-10-08 09:08:37 UTC
+> **Last Generated:** 2026-10-08 09:36:35 UTC
 
 The Observer Operator exposes a lightweight FastAPI service running on port `8006` (`127.0.0.1:8006->8000/tcp`) on Cano.
 
