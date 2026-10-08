@@ -99,47 +99,6 @@ class TestPreviewManager(unittest.IsolatedAsyncioTestCase):
         mock_answer.assert_awaited_once()
         self.assertIsNone(get_active_preview("volc"))
 
-    @patch("telegram_handler.is_authorized", return_value=True)
-    @patch("telegram_handler.send_telegram_reply", new_callable=AsyncMock)
-    async def test_telegram_command_preview_status_empty(self, mock_reply, mock_auth):
-        update = {
-            "message": {
-                "message_id": 101,
-                "chat": {"id": 555},
-                "from": {"id": 555, "first_name": "Miles"},
-                "text": "/preview status",
-            }
-        }
-        res = await handle_telegram_update(update)
-        self.assertTrue(res["ok"])
-        self.assertEqual(res["status"], "preview_status")
-        mock_reply.assert_awaited_once()
-        _, kwargs = mock_reply.call_args
-        self.assertIn("No mobile dev preview is currently active", kwargs["text"])
-
-    @patch("telegram_handler.is_authorized", return_value=True)
-    @patch("telegram_handler.send_telegram_reply", new_callable=AsyncMock)
-    @patch("telegram_handler.send_chat_action", new_callable=AsyncMock)
-    @patch("preview_manager.send_telegram", new_callable=AsyncMock)
-    async def test_telegram_command_preview_already_active(self, mock_send, mock_action, mock_reply, mock_auth):
-        mock_send.return_value = {"ok": True, "result": {"message_id": 100, "chat": {"id": 555}}}
-        await start_preview_session(project="volc", tunnel_url="exp+volc://active-preview", timeout_minutes=15)
-
-        update = {
-            "message": {
-                "message_id": 102,
-                "chat": {"id": 555},
-                "from": {"id": 555, "first_name": "Miles"},
-                "text": "/preview",
-            }
-        }
-        res = await handle_telegram_update(update)
-        self.assertTrue(res["ok"])
-        self.assertEqual(res["status"], "preview_already_active")
-        mock_reply.assert_awaited_once()
-        _, kwargs = mock_reply.call_args
-        self.assertIn("Already Live", kwargs["text"])
-
 
 if __name__ == "__main__":
     unittest.main()

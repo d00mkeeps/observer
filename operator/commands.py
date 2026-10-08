@@ -383,7 +383,6 @@ def handle_help_command() -> str:
         "• <code>/patches</code> — List code patches waiting for your approval\n"
         "• <code>/approve &lt;id&gt;</code> — Commit verified fix, push to GitHub & deploy\n"
         "• <code>/reject &lt;id&gt;</code> — Discard pending sandbox patch\n"
-        "• <code>/preview [volc|stop|status]</code> — On-demand iOS dev preview tunnel & interactive card\n"
         "• <code>/docs [api|arch|commands]</code> — View living documentation on demand\n"
         "• <code>/help</code> — Show this cheat sheet\n\n"
         "<b>🧠 Conversational AI Assistant:</b>\n"
