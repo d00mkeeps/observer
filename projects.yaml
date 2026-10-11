@@ -1,0 +1,93 @@
+last_updated: '2026-10-11T12:32:49.013993+00:00'
+projects:
+  horizon:
+    name: Horizon Paper Tracker
+    category: Trading / Bot
+    status: parked
+    status_reason: Collecting 15s ticks for quant backtest calibration
+    current_focus: 15-second tick accumulation across active holdings and DexScreener
+      candidates
+    parked_until: '2026-10-18'
+    next_milestone: 'Quant refactor: run selectivity experiments and ATR dynamic barriers
+      over 7-day tick fixture'
+    repo_path: /home/ubuntu/dev/horizon
+    containers:
+    - paper_frontend_ui
+    - solana_paper_tracker
+    - paper_postgres_db
+    notes:
+    - 15-second tick recorder deployed to prod and recording into public.token_ticks
+    - 'Fixture exporter CLI operational: python -m src.cli.export_ticks --days 7'
+    - 70/70 unit tests passing cleanly
+  volc:
+    name: Volc AI Gym Coach
+    category: iOS / AI
+    status: active
+    status_reason: Active development
+    current_focus: React Native (Expo SDK 54) mobile app and FastAPI backend
+    parked_until: null
+    next_milestone: Universal workout intake pipeline and canonical exercise matcher
+    repo_path: /home/ubuntu/dev/volc
+    containers:
+    - volc-website
+    - supreme-octo-doodle-api
+    notes:
+    - Mobile dev preview protocol available via http://127.0.0.1:8007/start
+  observer:
+    name: Observer SRE & Ops
+    category: SRE / Ops
+    status: active
+    status_reason: Active fleet monitoring and telemetry
+    current_focus: Cano fleet monitoring, automated incident response, project registry
+    parked_until: null
+    next_milestone: Central project management CLI and status synchronization
+    repo_path: /home/ubuntu/dev/observer
+    containers:
+    - obs-operator
+    - obs-prometheus
+    - obs-loki
+    notes:
+    - Runs @Airwavbot operator bot and auto-deploy webhook receiver
+  clearbox:
+    name: Clearbox Medicine API
+    category: API / RAG
+    status: active
+    status_reason: Production operational
+    current_focus: Biomedical knowledge retrieval and pgvector embeddings engine
+    parked_until: null
+    next_milestone: Vector search latency optimization
+    repo_path: /home/ubuntu/dev/clear-box
+    containers:
+    - clearbox-site
+    - medicine-api
+    - cb_postgres_db
+    notes:
+    - RAG search engine and pgvector embedding storage
+  portfolio:
+    name: Miles Portfolio
+    category: Web App
+    status: active
+    status_reason: Production operational
+    current_focus: Personal portfolio and project showcase web app
+    parked_until: null
+    next_milestone: Showcase dynamic status integration from Cano registry
+    repo_path: /home/ubuntu/dev/portfolio
+    containers:
+    - miles-portfolio
+    notes:
+    - Vite React portfolio deployed behind Nginx
+  sturdy-robot:
+    name: Crucible QA
+    category: DevOps / QA
+    status: active
+    status_reason: Production operational
+    current_focus: Crucible QA platform and feat-to-spec pipeline
+    parked_until: null
+    next_milestone: Autonomous E2E regression automation
+    repo_path: /home/ubuntu/dev/sturdy-robot
+    containers:
+    - crucible-web
+    - crucible-api
+    - feat-to-spec
+    notes:
+    - Provides QA test harness and automated spec generation

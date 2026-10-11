@@ -12,6 +12,7 @@ except ImportError:
     httpx = None
 from portfolio import PROJECT_METADATA, PROJECT_CONTAINERS, _recent_deploys
 from patch_manager import get_pending_patches
+from project_manager import get_project, list_projects, load_projects_registry
 
 PROMETHEUS_URL = os.environ.get("PROMETHEUS_URL", "http://prometheus:9090")
 LOKI_URL = os.environ.get("LOKI_URL", "http://loki:3100")
@@ -169,8 +170,11 @@ async def handle_status_command(args: list[str]) -> str:
         containers = PROJECT_CONTAINERS.get(target_slug, [])
         active_containers = [c for c in containers if c in running_names]
         meta = target_project
+        reg_proj = get_project(target_slug)
 
-        if target_slug in ("tax", "brain", "qa"):
+        if reg_proj and reg_proj.get("status") == "parked":
+            status_badge = f"⏸️ Parked (until {reg_proj.get('parked_until', 'N/A')})"
+        elif target_slug in ("tax", "brain", "qa"):
             status_badge = "⚪ Archived (Static)"
         elif containers and len(active_containers) == len(containers):
             status_badge = "🟢 Live (All containers healthy)"
@@ -193,9 +197,18 @@ async def handle_status_command(args: list[str]) -> str:
             f"🔗 {meta['url']}",
             f"<b>Category:</b> {meta['category']}",
             f"<b>Status:</b> {status_badge}",
+        ]
+        if reg_proj:
+            if reg_proj.get("status_reason"):
+                lines.append(f"<b>Status Note:</b> {html.escape(reg_proj['status_reason'])}")
+            if reg_proj.get("current_focus"):
+                lines.append(f"<b>Current Focus:</b> {html.escape(reg_proj['current_focus'])}")
+            if reg_proj.get("next_milestone"):
+                lines.append(f"<b>Next Milestone:</b> {html.escape(reg_proj['next_milestone'])}")
+        lines.extend([
             f"<b>Last Deploy:</b> {deploy_str}\n",
             "<b>Containers:</b>",
-        ]
+        ])
         for c in containers:
             is_up = c in running_names
             c_errs = error_counts.get(c, 0)
@@ -222,13 +235,20 @@ async def handle_status_command(args: list[str]) -> str:
         "<b>Project Fleet:</b>",
     ]
 
+    reg_data = load_projects_registry().get("projects", {})
+
     for slug, meta in PROJECT_METADATA.items():
         containers = PROJECT_CONTAINERS.get(slug, [])
         active_containers = [c for c in containers if c in running_names]
         proj_errs = sum(error_counts.get(c, 0) for c in containers)
         err_tag = f" ⚠️<code>{proj_errs}e</code>" if proj_errs > 0 else ""
+        reg_item = reg_data.get(slug, {})
 
-        if slug in ("tax", "brain", "qa"):
+        if reg_item and reg_item.get("status") == "parked":
+            icon = "⏸️"
+            parked_until = reg_item.get("parked_until")
+            state_desc = f"Parked (until {parked_until})" if parked_until else "Parked"
+        elif slug in ("tax", "brain", "qa"):
             icon = "⚪"
             state_desc = "Archived"
         elif containers and len(active_containers) == len(containers):
@@ -360,6 +380,89 @@ def handle_cost_command(args: list[str]) -> str:
     return cost_tracker.format_telegram_card(app_filter=first, timeframe=timeframe)
 
 
+def handle_projects_command(args: list[str]) -> str:
+    """Handle deterministic `projects [slug]` command for @Airwavbot."""
+    if args:
+        slug = args[0].strip().lower()
+        proj = get_project(slug)
+        if not proj:
+            return f"❌ <b>Project not found:</b> <code>{html.escape(slug)}</code>\n\nRun <code>/projects</code> to see all registered projects."
+
+        status_emojis = {
+            "active": "🟢",
+            "parked": "⏸️",
+            "in-development": "🔨",
+            "maintenance": "🟡",
+            "archived": "⚪",
+        }
+        raw_status = proj.get("status", "active").lower()
+        emoji = status_emojis.get(raw_status, "🔹")
+
+        lines = [
+            f"📌 <b>Project: {html.escape(proj.get('name', slug))}</b> (<code>{slug}</code>)",
+            f"<b>Category:</b> {html.escape(proj.get('category', 'N/A'))}",
+            f"<b>Status:</b> {emoji} <b>{raw_status.upper()}</b>",
+        ]
+        if proj.get("status_reason"):
+            lines.append(f"<b>Status Note:</b> {html.escape(proj['status_reason'])}")
+        if proj.get("parked_until"):
+            lines.append(f"<b>Parked Until:</b> <code>{html.escape(str(proj['parked_until']))}</code>")
+        if proj.get("current_focus"):
+            lines.append(f"<b>Current Focus:</b> {html.escape(proj['current_focus'])}")
+        if proj.get("next_milestone"):
+            lines.append(f"<b>Next Milestone:</b> {html.escape(proj['next_milestone'])}")
+        if proj.get("repo_path"):
+            lines.append(f"<b>Repo:</b> <code>{html.escape(proj['repo_path'])}</code>")
+
+        containers = proj.get("containers", [])
+        if containers:
+            lines.append(f"<b>Containers:</b> <code>{', '.join(containers)}</code>")
+
+        notes = proj.get("notes", [])
+        if notes:
+            lines.append("\n<b>Notes:</b>")
+            for n in notes:
+                lines.append(f"• {html.escape(n)}")
+
+        return "\n".join(lines)
+
+    # Overview of all projects
+    projects_list = list_projects()
+    lines = [
+        "🌋 <b>CANO PROJECT REGISTRY</b>",
+        f"⏱ <i>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UTC</i>",
+        "━━━━━━━━━━━━━━━━━━━━",
+    ]
+
+    status_emojis = {
+        "active": "🟢",
+        "parked": "⏸️",
+        "in-development": "🔨",
+        "maintenance": "🟡",
+        "archived": "⚪",
+    }
+
+    for p in projects_list:
+        slug = p.get("slug", "")
+        raw_status = p.get("status", "active").lower()
+        emoji = status_emojis.get(raw_status, "🔹")
+        name = p.get("name", slug)
+
+        if raw_status == "parked" and p.get("parked_until"):
+            status_desc = f"Parked (until {p['parked_until']})"
+        else:
+            status_desc = raw_status.capitalize()
+
+        focus = p.get("current_focus", "")
+        focus_str = f"\n   └ <i>{html.escape(focus[:60])}</i>" if focus else ""
+
+        lines.append(f"{emoji} <b>{html.escape(name)}</b> (<code>{slug}</code>) — {status_desc}{focus_str}")
+
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
+    lines.append("<i>💡 Usage: <code>/projects &lt;slug&gt;</code> (e.g. <code>/projects horizon</code>, <code>/projects volc</code>)</i>")
+    return "\n".join(lines)
+
+
 def handle_help_command() -> str:
     """Handle deterministic `help` command."""
     return (
@@ -373,6 +476,7 @@ def handle_help_command() -> str:
         "• <code>/review &lt;patch|code&gt;</code> — Security, quality & edge-case audit\n"
         "• <code>/ship &lt;patch_id&gt;</code> — Verified release notes & deployment\n\n"
         "<b>⚡ Fleet & Ops Commands (Instant, 0 Tokens):</b>\n"
+        "• <code>/projects</code> / <code>/projects &lt;slug&gt;</code> — Central registry & parked milestone tracking\n"
         "• <code>/cost</code> / <code>/costs [app]</code> — Month-to-date and daily spend breakdown by app & service\n"
         "• <code>/status</code> — Overview of Cano host, projects & errors\n"
         "• <code>/status &lt;project&gt;</code> — Detail for project (e.g. <code>status volc</code>, <code>status horizon</code>)\n"
@@ -407,6 +511,9 @@ async def execute_deterministic_command(text: str) -> str | None:
 
     cmd = parts[0].lower()
     args = parts[1:]
+
+    if cmd in ("projects", "project", "pm"):
+        return handle_projects_command(args)
 
     if cmd in ("cost", "costs", "spend", "billing"):
         return handle_cost_command(args)

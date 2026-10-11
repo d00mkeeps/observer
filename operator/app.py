@@ -15,6 +15,13 @@ from monitor import run_error_monitor
 from portfolio import get_system_status, record_deploy_event
 from tools_observability import push_loki_log
 from cost_tracker import cost_tracker
+from project_manager import (
+    load_projects_registry,
+    list_projects,
+    get_project,
+    update_project,
+    format_markdown_summary,
+)
 from telegram_handler import handle_telegram_update, run_telegram_poller
 from agent import process_telegram_message
 from preview_manager import (
@@ -189,6 +196,39 @@ async def get_costs_endpoint(app: str | None = None, timeframe: str = "month"):
 async def status_endpoint():
     """Retrieve full Cano fleet status JSON, container health, Prometheus resource gauges, and recent deploy history."""
     return await get_system_status()
+
+
+@app.get("/projects")
+async def get_projects_endpoint(status: str | None = None):
+    """Retrieve all tracked Cano ecosystem projects, statuses, and milestones."""
+    return list_projects(status_filter=status)
+
+
+@app.get("/projects/markdown")
+async def get_projects_markdown_endpoint():
+    """Retrieve full Cano ecosystem project registry as rendered Markdown."""
+    data = load_projects_registry()
+    return {"markdown": format_markdown_summary(data)}
+
+
+@app.get("/projects/{slug}")
+async def get_project_detail_endpoint(slug: str):
+    """Retrieve details for a specific Cano project by slug."""
+    proj = get_project(slug)
+    if not proj:
+        raise HTTPException(status_code=404, detail=f"Project '{slug}' not found")
+    return proj
+
+
+@app.patch("/projects/{slug}")
+@app.post("/projects/{slug}")
+async def update_project_endpoint(slug: str, request: Request):
+    """Update fields on a Cano project entry."""
+    data = await request.json()
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    res = update_project(slug, data)
+    return res
 
 
 @app.post("/report")
