@@ -1,4 +1,4 @@
-last_updated: '2026-10-11T12:32:49.013993+00:00'
+last_updated: '2026-10-11T12:48:26.427841+00:00'
 projects:
   horizon:
     name: Horizon Paper Tracker
@@ -47,7 +47,8 @@ projects:
     - obs-prometheus
     - obs-loki
     notes:
-    - Runs @Airwavbot operator bot and auto-deploy webhook receiver
+    - Central SRE operator API and auto-deploy webhook receiver
+    - Telegram bot token migrated to Airwave music platform
   clearbox:
     name: Clearbox Medicine API
     category: API / RAG
@@ -91,3 +92,24 @@ projects:
     - feat-to-spec
     notes:
     - Provides QA test harness and automated spec generation
+  airwave:
+    name: Airwave Music Ingestion
+    category: Music / Telegram
+    status: active
+    status_reason: Repurposed @Airwavbot as dedicated music acquisition agent
+    current_focus: Autonomous music acquisition and streaming via Soulseek/slskd,
+      Navidrome & yt-dlp on @Airwavbot
+    parked_until: null
+    next_milestone: P2P transfer watchdog, tagging, and Navidrome library sync
+    repo_path: /home/ubuntu/dev/airwave
+    containers:
+    - airwave
+    - navidrome
+    - slskd
+    notes:
+    - Replaces legacy DevOps bot on @Airwavbot token
+    - Navidrome Subsonic API integration with instant scan indexing
+    - Soulseek P2P engine with 60-minute automatic fallback
+    - Mutagen tagging and regex noise scrubbing
+    - 'Stack: slskd (5030), Navidrome (4533), yt-dlp, MusicBrainz tagger, Gemini intent
+      extraction'
